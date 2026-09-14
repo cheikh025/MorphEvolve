@@ -1,25 +1,28 @@
 #!/usr/bin/env bash
-# Install the Evolve kit into a DeepSeek Harness home:
+# Install the Evolve kit into a DeepSeek Harness home, using a DSH source clone:
 #   - the dsh-dirspawn and dsh-evolve-loop plugins, from dist/, into a profile
 #   - the Evolve preset, from presets/evolve, into $DSH_HOME/.agent-presets/evolve
 #
-# Usage: bash setup.sh
-# Environment: DSH_HOME (default ~/.dsh), PROFILE (default web)
+# Usage: DSH_REPO=/path/to/deepseek-harness bash setup.sh
+# Environment: DSH_REPO (default ~/deepseek-harness), DSH_HOME (default ~/.dsh), PROFILE (default web)
 set -euo pipefail
 
 KIT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DSH_REPO="${DSH_REPO:-$HOME/deepseek-harness}"
 DSH_HOME="${DSH_HOME:-$HOME/.dsh}"
 PROFILE="${PROFILE:-web}"
 PROFILE_DIR="$DSH_HOME/profiles/$PROFILE"
 PLUGINS=(dsh-dirspawn dsh-evolve-loop)
+BUILT_AGAINST="0.1.2-rc.1"
 
 fail() { echo "setup: $*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || fail "$1 not found on PATH. $2"; }
+# Run the clone's own CLI, exactly as `pnpm dsh ...` from the clone.
+dsh_clone() { (cd "$DSH_REPO" && pnpm dsh "$@"); }
 
 echo "== 1/4 checks"
 need node "Install Node.js 24 (the harness needs ^22.19.0 or >=24.0.0)."
 need pnpm "Install pnpm 11.7.0, e.g.: npm install -g pnpm@11.7.0"
-need dsh "Install the DeepSeek Harness CLI: npm install -g @deepseek-ai/dsh@0.1.2-rc.1"
 need python "The evaluator is started as 'python'. On Debian/Ubuntu: sudo apt install python-is-python3"
 node -e '
   const [major, minor] = process.versions.node.split(".").map(Number)
@@ -28,7 +31,18 @@ node -e '
     process.exit(1)
   }
 '
-echo "node $(node -v) | pnpm $(pnpm -v) | $(python --version 2>&1) | dsh at $(command -v dsh)"
+[ -f "$DSH_REPO/apps/cli/package.json" ] \
+  || fail "no DeepSeek Harness clone at $DSH_REPO. Set DSH_REPO=/path/to/deepseek-harness"
+[ -d "$DSH_REPO/node_modules" ] && [ -f "$DSH_REPO/apps/cli/lib/bin.js" ] \
+  || fail "the clone at $DSH_REPO is not installed and built. In it, run: pnpm install && pnpm run build"
+DSH_VERSION="$(node -p 'require(process.argv[1]).version' "$DSH_REPO/apps/cli/package.json")"
+echo "node $(node -v) | pnpm $(pnpm -v) | $(python --version 2>&1) | DSH clone $DSH_VERSION at $DSH_REPO"
+if [ "$DSH_VERSION" != "$BUILT_AGAINST" ]; then
+  echo "setup: warning: the plugins were built against DSH $BUILT_AGAINST and your clone is $DSH_VERSION. Run the README checks after setup." >&2
+fi
+if command -v dsh >/dev/null 2>&1; then
+  echo "setup: warning: another 'dsh' is on your PATH ($(command -v dsh)). Start DSH from the clone (pnpm dsh web), or that one may run instead." >&2
+fi
 if command -v bwrap >/dev/null 2>&1; then
   echo "sandbox: bwrap found"
 else
@@ -44,10 +58,10 @@ for pkg in "${PLUGINS[@]}"; do
       process.exit(manifest.dependencies && manifest.dependencies[process.argv[2]] ? 0 : 1)
     ' "$PROFILE_DIR/package.json" "$pkg"; then
     echo "-- removing the installed $pkg"
-    dsh plugin --profile "$PROFILE" remove "$pkg"
+    dsh_clone plugin --profile "$PROFILE" remove "$pkg"
   fi
   echo "-- adding $pkg"
-  dsh plugin --profile "$PROFILE" add "$tgz"
+  dsh_clone plugin --profile "$PROFILE" add "$tgz"
 done
 
 echo "== 3/4 preset -> $DSH_HOME/.agent-presets/evolve"
@@ -77,4 +91,4 @@ node -e '
   || fail "the Evolve preset was not copied"
 
 echo
-echo "Ready. Restart DSH (dsh web), then start a session with the \"Evolve Mode\" preset in a task folder."
+echo "Ready. Restart DSH from the clone (cd $DSH_REPO && pnpm dsh web), then start a session with the \"Evolve Mode\" preset in a task folder."
