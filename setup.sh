@@ -13,7 +13,7 @@ DSH_HOME="${DSH_HOME:-$HOME/.dsh}"
 PROFILE="${PROFILE:-web}"
 PROFILE_DIR="$DSH_HOME/profiles/$PROFILE"
 PLUGINS=(dsh-dirspawn dsh-evolve-loop)
-BUILT_AGAINST="0.1.2-rc.1"
+BUILT_AGAINST="0.1.5-rc.2"
 
 fail() { echo "setup: $*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || fail "$1 not found on PATH. $2"; }
@@ -38,7 +38,7 @@ node -e '
 DSH_VERSION="$(node -p 'require(process.argv[1]).version' "$DSH_REPO/apps/cli/package.json")"
 echo "node $(node -v) | pnpm $(pnpm -v) | $(python --version 2>&1) | DSH clone $DSH_VERSION at $DSH_REPO"
 if [ "$DSH_VERSION" != "$BUILT_AGAINST" ]; then
-  echo "setup: warning: the plugins were built against DSH $BUILT_AGAINST and your clone is $DSH_VERSION. Run the README checks after setup." >&2
+  echo "setup: warning: the kit targets DSH $BUILT_AGAINST and your clone is $DSH_VERSION. Run the README checks after setup." >&2
 fi
 if command -v dsh >/dev/null 2>&1; then
   echo "setup: warning: another 'dsh' is on your PATH ($(command -v dsh)). Start DSH from the clone (pnpm dsh web), or that one may run instead." >&2

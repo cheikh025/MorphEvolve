@@ -17,8 +17,9 @@
 - id: persona
   name: '@deepseek-ai/dsh-persona'
   config:
-    text: |-
-      You are a search orchestrator powered by the {{model}} model, running on the DeepSeek Harness. Your working directory is {{cwd}}.
+    suffix: Your working directory is {{cwd}}.
+    prefix: |-
+      You are a search orchestrator powered by the {{model}} model, running on the DeepSeek Harness.
 
       You run one search, for one task, in one session. At the end there is a best solution and its official score, and that is the only result — nothing about how your search changed along the way is a result in itself. No human takes part once the run has started; there is nobody to ask, so decide and proceed.
 
@@ -279,3 +280,6 @@
 
 - id: tool-skill
   name: '@deepseek-ai/dsh-tool-skill'
+
+- id: present
+  name: '@deepseek-ai/dsh-tool-present'

@@ -34,7 +34,7 @@ export TASKS=/data/cheikh/evolve-tasks          # where runs write
 | --- | --- | --- |
 | Node.js | 24.x (the harness needs `^22.19.0` or `>=24.0.0`) | `node -v` |
 | pnpm | 11.7.0 | `pnpm -v` |
-| DeepSeek Harness | a clone of `deepseek-harness`, installed and built; the plugins were built against **0.1.2-rc.1** | `node -p "require('$DSH_REPO/apps/cli/package.json').version"` |
+| DeepSeek Harness | a clone of `deepseek-harness`, installed and built; the kit targets **0.1.5-rc.2**, the official repository's version when the kit was last updated | `node -p "require('$DSH_REPO/apps/cli/package.json').version"` |
 | Python | 3, reachable as `python` (tested with 3.13) | `python --version` |
 | bubblewrap | any; DSH's sandbox on Linux uses `bwrap`, then a Landlock launcher | `bwrap --version` |
 
@@ -90,7 +90,7 @@ It reads `DSH_REPO` and `DSH_HOME` from your shell. It checks the requirements a
 
 It is safe to run again: installed plugins are replaced, and an installed Evolve preset is moved to `$DSH_HOME/.agent-presets-backup/` first — see [The preset](#the-preset) before re-running it if the preset was changed on this machine.
 
-It warns when your clone is not 0.1.2-rc.1 (run the checks below), and when another `dsh` is on your PATH.
+It warns when your clone is not 0.1.5-rc.2 (run the checks below), and when another `dsh` is on your PATH.
 
 ### 6. Put the tasks where runs can write
 
@@ -134,7 +134,7 @@ Run these after `setup.sh`. Each should give the expected result.
 | --- | --- | --- |
 | paths set | `echo "$DSH_REPO $DSH_HOME"` | your two paths, in every shell you use |
 | only the clone runs DSH | `which -a dsh` | nothing |
-| DSH version | `node -p "require('$DSH_REPO/apps/cli/package.json').version"` | `0.1.2-rc.1`, or your newer version — then the last two checks matter most |
+| DSH version | `node -p "require('$DSH_REPO/apps/cli/package.json').version"` | `0.1.5-rc.2`, or another version — then the last two checks matter most |
 | sandbox | `bwrap --ro-bind / / true && echo ok` | `ok` |
 | plugins listed in the profile | `grep -A6 '"bundles"' "$DSH_HOME/profiles/web/package.json"` | includes `dsh-dirspawn` and `dsh-evolve-loop` |
 | workers cannot use the web | `grep -c web_search "$DSH_HOME/profiles/web/node_modules/dsh-dirspawn/lib/index.js"` | `1` |
@@ -206,7 +206,8 @@ Restart DSH (`cd "$DSH_REPO" && pnpm dsh web --no-open`).
 - **The page does not open** — forward port 3080 (step 7); DSH does not open a browser over SSH.
 - **Evaluation fails at the baseline with a permission error** — the session's sandbox mode is `read-only`; the evaluator needs `workspace-write` to write its temporary files.
 - **Everything disappeared after a container restart** — `DSH_HOME`, the clone, the kit or the tasks were outside `/data`.
-- **`evolve_status` or a worker fails on a newer clone** — the plugins were built against 0.1.2-rc.1, and something they use changed in your version. The plugin source then needs updating for that version; keep the exact error.
+- **Evolve Mode is listed but cannot be selected** — its composition does not match your DSH version. For example, in 0.1.5 the persona plugin's settings changed from `text` to `prefix` and `suffix`. Compare it with your clone's `cordis` preset (see [After updating the DSH clone](#after-updating-the-dsh-clone)).
+- **`evolve_status` or a worker fails** — the plugins were built against DSH 0.1.2-rc.1. Every harness function they import was checked to still exist in 0.1.5-rc.2, but not that each still behaves the same. Keep the exact error: the plugin source may need updating for your version.
 
 ## Changing a plugin
 
