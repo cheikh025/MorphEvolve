@@ -207,7 +207,7 @@ Restart DSH (`cd "$DSH_REPO" && pnpm dsh web --no-open`).
 - **Evaluation fails at the baseline with a permission error** — the session's sandbox mode is `read-only`; the evaluator needs `workspace-write` to write its temporary files.
 - **Everything disappeared after a container restart** — `DSH_HOME`, the clone, the kit or the tasks were outside `/data`.
 - **Evolve Mode is listed but cannot be selected** — its composition does not match your DSH version. For example, in 0.1.5 the persona plugin's settings changed from `text` to `prefix` and `suffix`. Compare it with your clone's `cordis` preset (see [After updating the DSH clone](#after-updating-the-dsh-clone)).
-- **`evolve_status` or a worker fails** — the plugins were built against DSH 0.1.2-rc.1. Every harness function they import was checked to still exist in 0.1.5-rc.2, but not that each still behaves the same. Keep the exact error: the plugin source may need updating for your version.
+- **`evolve_status` or a worker fails** — the plugins are built and tested against DSH 0.1.5-rc.2. On another version something they use may have changed; keep the exact error, since the plugin source may then need updating for that version.
 
 ## Changing a plugin
 

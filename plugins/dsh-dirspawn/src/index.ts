@@ -260,18 +260,18 @@ function attachDescriptorAppend(childCtx: Context, descriptor: SubagentDescripto
  * built-in spawn backend), then the dirspawn-only layers — the pinned policy,
  * the confinement statement, the tool denial, and the path guard.
  * @param childCtx - the unpublished child's scoped context.
+ * @param child - the unpublished child agent, as the agent factory passes it to setup.
  * @param parent - the delegating parent agent.
  * @param request - the resolved start request.
  * @param confine - the confinement payload.
  */
 function setupConfinement(
   childCtx: Context,
+  child: Agent,
   parent: Agent,
   request: ResolvedSubagentStartRequest,
   confine: DirspawnConfine,
 ): void {
-  const child = childCtx.agent
-  if (child === undefined) throw new Error('dirspawn: child setup ran without the child agent association')
   // The parent's preset join and the per-child persona/toolFilter, exactly as
   // the built-in spawn backend applies them.
   applyChildComposition(childCtx, parent, { persona: request.persona, toolFilter: request.toolFilter })
@@ -314,6 +314,8 @@ async function startDirspawnRun(
   const agentPreset = parent.ctx.get('agentPresets')?.composedPreset(parent.ctx)
   const handle = await parent.ctx.agents.create({
     sessionId: childId,
+    // Owned by the delegating agent at runtime, as the built-in spawn backend does.
+    parentAgent: parent,
     meta: {
       cwd: confine.root,
       parentSession: parent.id,
@@ -324,7 +326,7 @@ async function startDirspawnRun(
     },
     agentOptions: resolveChildAgentOptions(parent, request.agentOptions, childDepth),
     signal: request.signal,
-    setup: (childCtx: Context): void => { setupConfinement(childCtx, parent, request, confine) },
+    setup: (childCtx: Context, child: Agent): void => { setupConfinement(childCtx, child, parent, request, confine) },
   })
   return drivePublishedRun(handle, request, childId, activationBoundary)
 }
