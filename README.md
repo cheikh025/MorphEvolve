@@ -4,7 +4,8 @@ Everything needed to run EVOLVE on a new machine with the DeepSeek Harness (DSH)
 
 ```text
 evolve-kit/
-├── setup.sh                 installs the plugins and the preset (one command)
+├── setup.sh                 installs DSH, the plugins and the preset (one command)
+├── PROMPT.md                the prompt to give an Evolve Mode session
 ├── dist/                    prebuilt plugin tarballs — setup.sh installs these
 │   ├── dsh-dirspawn-0.1.0.tgz
 │   └── dsh-evolve-loop-0.1.0.tgz
@@ -119,11 +120,11 @@ The first time, set up your model and API key in the page.
 
 ### 8. Start a run
 
-1. Start a new session with the **Evolve Mode** preset and a task folder as its working directory, for example `/data/cheikh/evolve-tasks/ahc001`.
-2. Give it the prompt:
+1. Start a new session with the **Evolve Mode** preset and a task folder as its working directory, for example `/data/cheikh/evolve-tasks/ahc002`.
+2. Give it the prompt in [`PROMPT.md`](PROMPT.md), which `setup.sh` also prints when it finishes. Change the task name in it to the folder you opened:
 
 ```
-Improve the solution for task ahc001 by orchestrating the search. Fitness is the mean score over seeds 0 to 49. The budget is 50 candidates. Run evolve_run in small chunks. Between chunks, analyze the runs, identify which mechanism of the search needs to be updated, improve that mechanism, and repeat.
+Improve the solution for task ahc002 by orchestrating and improving the search process. Fitness is the mean score over seeds 0 to 49, and the total budget is 100 candidates. Run evolve_run in small chunks rather than using the full budget at once. Between chunks, analyze the results and determine which part or mechanism of the search is limiting progress, stalling, underperforming, or could be made more effective. Update and improve that specific search mechanism, then run another small chunk and repeat this process. Make improvements whenever the search stalls or when the run data suggests that some part of the search machinery could be better. Do not focus on directly solving task ahc002 yourself; your role is to orchestrate, diagnose, and improve the search machinery so that the search can discover better solutions. Do not use the web, do not search for existing solutions, and do not give any subagent the option to use the web or search externally for solutions.
 ```
 
 ## Checks

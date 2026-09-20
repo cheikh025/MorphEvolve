@@ -56,6 +56,7 @@ fi
 for pkg in "${PLUGINS[@]}"; do
   [ -f "$KIT/dist/$pkg-0.1.0.tgz" ] || fail "missing $KIT/dist/$pkg-0.1.0.tgz"
 done
+[ -f "$KIT/PROMPT.md" ] || fail "missing $KIT/PROMPT.md"
 
 echo "== 2/5 DSH clone -> $DSH_REPO (kit targets $BUILT_AGAINST)"
 needs_build=0
@@ -131,7 +132,8 @@ if [ -d "$PRESETS/evolve" ]; then
   # Kept outside .agent-presets: DSH lists every directory there as a preset.
   backup="$DSH_HOME/.agent-presets-backup/evolve-$(date +%Y%m%d-%H%M%S)"
   mkdir -p "$(dirname "$backup")"
-  mv "$PRESETS/evolve" "$backup"
+  mv "$PRESETS/evolve" "$backup" \
+    || fail "could not move the installed preset to $backup. A running DSH can hold that folder open — stop DSH and run setup.sh again."
   echo "-- previous preset moved to $backup"
 fi
 cp -R "$KIT/presets/evolve" "$PRESETS/evolve"
@@ -156,3 +158,7 @@ echo
 echo "Ready. DSH $version at $DSH_REPO, plugins in profile '$PROFILE', preset in $PRESETS/evolve."
 echo "Start DSH from the clone: cd $DSH_REPO && DSH_HOME=$DSH_HOME pnpm dsh web"
 echo "Then start a session with the \"Evolve Mode\" preset in a task folder."
+echo
+echo "The prompt to give that session ($KIT/PROMPT.md; change the task name to the folder you opened):"
+echo
+cat "$KIT/PROMPT.md"
