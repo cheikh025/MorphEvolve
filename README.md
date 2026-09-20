@@ -34,7 +34,8 @@ export TASKS=/data/cheikh/evolve-tasks          # where runs write
 | --- | --- | --- |
 | Node.js | 24.x (the harness needs `^22.19.0` or `>=24.0.0`) | `node -v` |
 | pnpm | 11.7.0 | `pnpm -v` |
-| DeepSeek Harness | a clone of `deepseek-harness`, installed and built; the kit targets **0.1.5-rc.2**, the official repository's version when the kit was last updated | `node -p "require('$DSH_REPO/apps/cli/package.json').version"` |
+| git | any | `git --version` |
+| DeepSeek Harness | a source clone pinned to **0.1.5-rc.2** (tag `dsh-v0.1.5-rc.2`). `setup.sh` clones and builds it when `$DSH_REPO` is missing, so you do not have to — never install `@deepseek-ai/dsh` from npm instead | `node -p "require('$DSH_REPO/apps/cli/package.json').version"` |
 | Python | 3, reachable as `python` (tested with 3.13) | `python --version` |
 | bubblewrap | any; DSH's sandbox on Linux uses `bwrap`, then a Landlock launcher | `bwrap --version` |
 
@@ -63,34 +64,33 @@ bwrap --ro-bind / / true && echo "bwrap works"
 
 If this fails with a namespace or permission error, DSH falls back to its Landlock launcher; if that also fails, sandboxed commands refuse to run (`SANDBOX_UNAVAILABLE`) and no candidate can be evaluated. The container then has to be started with a less restrictive seccomp/AppArmor profile — that is a setting of whoever runs the container.
 
-### 3. Get DSH from source
-
-Skip the clone if you already have it at `$DSH_REPO`:
-
-```bash
-git clone https://github.com/deepseek-ai/deepseek-harness.git "$DSH_REPO"
-cd "$DSH_REPO"
-pnpm install
-pnpm run build
-```
-
-### 4. Get the kit
+### 3. Get the kit
 
 ```bash
 git clone https://github.com/cheikh025/evolve-kit.git "$KIT"
 ```
 
-### 5. Run the setup
+### 4. Run the setup
 
 ```bash
 bash "$KIT/setup.sh"
 ```
 
-It reads `DSH_REPO` and `DSH_HOME` from your shell. It checks the requirements and the clone, installs both plugins from `dist/` into the `web` profile through the clone's own CLI (`pnpm dsh plugin ...`), copies the preset to `$DSH_HOME/.agent-presets/evolve`, and verifies the result.
+That one command does the rest. It reads `DSH_REPO` and `DSH_HOME` from your shell and:
+
+1. **checks** node (`^22.19.0` or `>=24.0.0`), pnpm, git, that `python` is Python 3, that both tarballs are in `dist/`, and warns when `bwrap` is missing or another `dsh` is on your PATH;
+2. **gets the DSH clone to 0.1.5-rc.2** — clones `deepseek-ai/deepseek-harness` at tag `dsh-v0.1.5-rc.2` when `$DSH_REPO` is missing, and runs `pnpm install && pnpm run build`. A clone already reporting 0.1.5-rc.2 is left exactly as it is. A clone on another version is switched to the tag and rebuilt, but only when its working tree is clean — with uncommitted changes it stops and tells you, and the line it prints names the ref you were on so you can go back;
+3. **installs both plugins** from `dist/` into the `web` profile through the clone's own CLI (`pnpm dsh plugin ...`);
+4. **installs the preset** at `$DSH_HOME/.agent-presets/evolve`;
+5. **verifies**: the dirspawn web restriction, `evolve_status`, the `evolve.files` rail, both plugins listed in the profile bundles, and the preset files.
+
+Override the pin with `DSH_REF` and `DSH_REMOTE` if you need another harness version — the plugins and the preset are built for 0.1.5-rc.2, so expect to fix things if you do.
 
 It is safe to run again: installed plugins are replaced, and an installed Evolve preset is moved to `$DSH_HOME/.agent-presets-backup/` first — see [The preset](#the-preset) before re-running it if the preset was changed on this machine.
 
-It warns when your clone is not 0.1.5-rc.2 (run the checks below), and when another `dsh` is on your PATH.
+### 5. (optional) Use a clone you already have
+
+Point `DSH_REPO` at it before running setup. Nothing else is needed — if it is already 0.1.5-rc.2, setup leaves it untouched; if it is not, commit or stash your work first so setup can switch it.
 
 ### 6. Put the tasks where runs can write
 
