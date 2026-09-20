@@ -97,13 +97,11 @@
 # ── goals ───────────────────────────────────────────────────────────────────
 
 # The goal service and session driver stay on the host plane, where the Gateway
-# can resolve them. The human command and model-facing tool register into this
-# preset's scoped layers.
+# can resolve them. Only the human command registers into this preset's scoped
+# layers; the model-facing goal tools are deliberately not mounted, so the
+# agent cannot create or manage goals.
 - id: command-goal
   name: '@deepseek-ai/dsh-command-goal'
-
-- id: tool-goal
-  name: '@deepseek-ai/dsh-tool-goal'
 
 # ── plan mode ───────────────────────────────────────────────────────────────
 

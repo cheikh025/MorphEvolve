@@ -16,6 +16,7 @@ import surviveProvider, { DEFAULT_K } from './providers/survive.js'
 import { budgetStatus, pinBudget, readBudget } from './budget.js'
 import { allocateCandidate, candidatePath, copyTask, isCandidate, runPaths } from './candidates.js'
 import { populationOf } from './population.js'
+import { filesOf } from './files.js'
 
 export const PROVIDER_SLOTS = Object.freeze(['loop', 'select', 'mutate', 'evaluate', 'survive'])
 export const WORKER_PROVIDER = 'dirspawn'
@@ -265,6 +266,22 @@ export class Evolve {
   /** Population handle for current run */
   population() {
     return populationOf(this.currentRun().root)
+  }
+
+  /**
+   * Run-scoped file store for search machinery.
+   *
+   * A neutral storage primitive: it reads and writes bytes under the run
+   * directory (`run/`) and carries no memory or search strategy. Dynamic
+   * (sandboxed) provider code must use this instead of `node:fs` or `ctx.fs`:
+   * the dynamic sandbox has no `node:fs`, and the harness's `ctx.fs` resolves
+   * the deployment default sandbox policy without a caller session, so a write
+   * under `run/` is denied with `FS_SANDBOX_DENIED`. The host half has no such
+   * fence.
+   * @returns {Readonly<object>} handle with resolve/write/append/read/list/exists/remove.
+   */
+  get files() {
+    return filesOf(this.currentRun().root)
   }
 
   /** Context of the current run */

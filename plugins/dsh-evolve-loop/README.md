@@ -19,6 +19,7 @@ Instead of a monolithic disk store, on-disk state is partitioned strictly by dom
 - **`src/population.js`**: Owns `population.jsonl`. Reads records, handles parent lineage, performs atomic crash-safe rewrites during culling, and tracks alive candidates.
 - **`src/budget.js`**: Owns `budget.json`. Pins run budgets, counts spent attempts from candidate folders, and tracks remaining units.
 - **`src/candidates.js`**: Owns candidate workspaces (`candidates/c000000`, `candidates/c000001`). Copies the task baseline, allocates child directories, and manages path resolution.
+- **`src/files.js`**: Owns raw file I/O for machinery state under the run directory. `evolve.files` exposes `resolve`, `write` (atomic), `append`, `read`, `list`, `exists` and `remove` on paths confined to `run/`. Dynamic (sandboxed) provider code must use it instead of `node:fs` (absent in the sandbox) or `ctx.fs` (policy-fenced without a caller session, so writes under `run/` fail with `FS_SANDBOX_DENIED`); this module runs in the plugin's host half, which has neither restriction.
 
 ## Inspecting and Swapping Providers at Runtime
 

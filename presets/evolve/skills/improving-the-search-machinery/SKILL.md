@@ -101,8 +101,11 @@ Every method receives the service as `evolve`. These operations on it are fixed,
 - `allocate(parentId)` — creates the next candidate as a full copy of the parent and spends one budget unit; returns `{ id, dir }`, and refuses when the budget is used up.
 - `copyTask()` — creates the baseline `c000000`; returns `{ id, dir }`.
 - `population()` — the run's population file: `rows()`, `append(row)`, `write(rows)`.
+- `files` — a run-scoped file store for machinery state: `resolve(path)`, `write(path, text)`, `append(path, text)`, `read(path)` (undefined when absent), `list(dir)`, `exists(path)`, `remove(path)`. Paths are relative to the run directory (`run/`) and cannot escape it.
 - `context()` — `{ task, root, seeds, k, maxPopulation, candidates, budget: { max, used, remaining } }`.
 - `spawnWorker(dir, prompt, options)` — starts one worker confined to `dir` and waits for it; returns `{ text, stopReason }`. `options` may set `description`, `persona`, `model`, `allowShell`, `allowedTools` and `maxDepth`.
+
+Persist machinery state (scores, reports, logs, digests) with `evolve.files`, never with `node:fs` or `ctx.fs`. The dynamic sandbox has no `node:fs`, and `ctx.fs` is policy-fenced: a dynamic plugin calls `writeText` without a per-call sandbox policy, so the fence resolves the deployment default policy (`workspace-write`, workspace root `process.cwd()`) and a write under the run directory fails with `FS_SANDBOX_DENIED`. The `evolve.files` handle runs in the plugin's host half, which has no such fence.
 
 Before replacing anything, look at what is active: `evolve.listProviders()` returns the active provider's name for every slot, and `evolve.getProvider(slot)` returns the provider itself. The default mutate exposes `defaultInstruction(parentFitness)` and `defaultPersona()`, so you can read exactly what workers are told today.
 
