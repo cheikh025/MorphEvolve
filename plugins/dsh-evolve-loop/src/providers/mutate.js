@@ -9,7 +9,7 @@ export const name = 'dirspawn-worker'
 
 /** Default worker persona. */
 export function defaultPersona() {
-  return 'You are an autonomous algorithm and code optimization engineer. Your goal is to inspect the solution in your workspace, understand the problem, and produce a higher-performing implementation.'
+  return 'You are a worker in an evolutionary search. You make one variation of one candidate, check that it runs, and stop. Finding the best solution is the search\'s job, across many workers.'
 }
 
 /**
@@ -18,21 +18,21 @@ export function defaultPersona() {
  * @returns {string}
  */
 export function defaultInstruction(parentFitness) {
-  const lines = [
-    'Inspect the current directory and understand the task.',
-    'Examine the current solution implemented between the evolve markers (#EVOLVE_START and #EVOLVE_END).',
-  ]
+  const score = typeof parentFitness === 'number' && Number.isFinite(parentFitness)
+    ? ` It scores ${parentFitness}.`
+    : ''
 
-  if (typeof parentFitness === 'number' && Number.isFinite(parentFitness)) {
-    lines.push(`This solution achieved a score of ${parentFitness}.`)
-  }
-
-  lines.push(
-    'Think carefully and write a better solution between these markers to improve performance.',
-    'Remove any temporary scratch files you create before finishing.',
-  )
-
-  return lines.join('\n')
+  return [
+    'You make ONE attempt at improving this candidate. The search makes many other attempts and compares them; comparing, benchmarking and tuning are not your job.',
+    '',
+    `1. Read statement.md and the solution between #EVOLVE_START and #EVOLVE_END.${score}`,
+    '2. Choose one idea to improve it, and write it into solution.py between the markers.',
+    '3. Check that it runs: python -B evaluate.py --candidate . --seed 0 must print "status": "VALID".',
+    '4. If it does not, fix that error and check again. Do not switch to a different idea.',
+    '5. As soon as the check prints VALID, stop. Reply with two sentences: the idea you implemented and its seed-0 score.',
+    '',
+    'Do not create any file other than solution.py. Do not write benchmark or test scripts, run other seeds, compare variants, or tune parameters.',
+  ].join('\n')
 }
 
 /**

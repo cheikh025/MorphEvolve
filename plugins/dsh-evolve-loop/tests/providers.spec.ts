@@ -94,13 +94,13 @@ describe('provider swapping', () => {
     expect(pers).not.toMatch(/test your change/i)
     expect(inst).toContain('#EVOLVE_START')
     expect(inst).toContain('#EVOLVE_END')
-    expect(inst).toContain('This solution achieved a score of 42.')
+    expect(inst).toContain('It scores 42.')
 
     await runTool({ max_budget: 1, seeds: [1] })
     expect(capturedStartRequests).toHaveLength(1)
     const req = capturedStartRequests[0]
     // Baseline c000000 scored 10 in fixture, so candidate c000001 gets score 10 feedback
-    expect(req.prompt[0].text).toContain('This solution achieved a score of 10.')
+    expect(req.prompt[0].text).toContain('It scores 10.')
     expect(req.persona).toBe(pers)
   })
 
