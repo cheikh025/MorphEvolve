@@ -94,14 +94,27 @@ describe('provider swapping', () => {
     expect(pers).not.toMatch(/test your change/i)
     expect(inst).toContain('#EVOLVE_START')
     expect(inst).toContain('#EVOLVE_END')
-    expect(inst).toContain('It scores 42.')
+    expect(inst).toContain('This solution achieved a score of 42.')
 
     await runTool({ max_budget: 1, seeds: [1] })
     expect(capturedStartRequests).toHaveLength(1)
     const req = capturedStartRequests[0]
     // Baseline c000000 scored 10 in fixture, so candidate c000001 gets score 10 feedback
-    expect(req.prompt[0].text).toContain('It scores 10.')
+    expect(req.prompt[0].text).toContain('This solution achieved a score of 10.')
     expect(req.persona).toBe(pers)
+  })
+
+  it('confines the worker to writing one solution, with no shell', async () => {
+    const inst = defaultInstruction()
+    const pers = defaultPersona()
+
+    expect(inst).toContain('Write a single complete solution')
+    expect(inst).toContain('You cannot run the code or benchmarks here')
+    expect(pers).toContain('you cannot execute code here')
+
+    await runTool({ max_budget: 1, seeds: [1] })
+    // The prompt says the worker cannot execute; the guard is what makes that true.
+    expect(capturedStartRequests[0].confine.allowShell).toBe(false)
   })
 
   it('forwards all dirspawn parameters from mutate', async () => {

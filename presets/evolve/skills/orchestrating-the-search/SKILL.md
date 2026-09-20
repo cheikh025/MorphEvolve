@@ -83,7 +83,7 @@ When `run/population.jsonl` has no rows, `evolve_run` first creates the baseline
 ### Each pass
 
 - **select** — picks a parent from the alive candidates. The default chooses in proportion to fitness.
-- **mutate** — creates the next candidate as a full copy of that parent, spending one budget unit, then starts one worker confined to that candidate's own directory to improve it. The default worker is told the parent's score, to change only the marked region, and to remove its scratch files.
+- **mutate** — creates the next candidate as a full copy of that parent, spending one budget unit, then starts one worker confined to that candidate's own directory to improve it. The default worker is told the parent's score and writes one complete solution between the markers; it has no shell, so it cannot run the code or compare variants — scoring is the loop's evaluate step.
 - **evaluate** — scores the candidate with the task-root evaluator, once per seed, and takes the mean. Each seed has 60 seconds.
 - **record** — appends one row to `run/population.jsonl`: `{"id", "parent", "fitness", "survival": "yes"}`.
 - **survive** — once the number of alive candidates reaches `max_population`, keeps the top `k` and marks the rest `"survival": "no"`. Culled candidates keep their directories and their rows.

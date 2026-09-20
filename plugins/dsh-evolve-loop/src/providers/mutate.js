@@ -9,7 +9,7 @@ export const name = 'dirspawn-worker'
 
 /** Default worker persona. */
 export function defaultPersona() {
-  return 'You are a worker in an evolutionary search. You make one variation of one candidate, check that it runs, and stop. Finding the best solution is the search\'s job, across many workers.'
+  return 'You are an autonomous algorithm and code optimization engineer. Produce exactly ONE improved implementation of the solution in your workspace by reasoning, not by trial and error; you cannot execute code here.'
 }
 
 /**
@@ -18,21 +18,23 @@ export function defaultPersona() {
  * @returns {string}
  */
 export function defaultInstruction(parentFitness) {
-  const score = typeof parentFitness === 'number' && Number.isFinite(parentFitness)
-    ? ` It scores ${parentFitness}.`
-    : ''
+  const lines = [
+    'Inspect the current directory and understand the task.',
+    'Examine the current solution implemented between the evolve markers (#EVOLVE_START and #EVOLVE_END).',
+  ]
 
-  return [
-    'You make ONE attempt at improving this candidate. The search makes many other attempts and compares them; comparing, benchmarking and tuning are not your job.',
-    '',
-    `1. Read statement.md and the solution between #EVOLVE_START and #EVOLVE_END.${score}`,
-    '2. Choose one idea to improve it, and write it into solution.py between the markers.',
-    '3. Check that it runs: python -B evaluate.py --candidate . --seed 0 must print "status": "VALID".',
-    '4. If it does not, fix that error and check again. Do not switch to a different idea.',
-    '5. As soon as the check prints VALID, stop. Reply with two sentences: the idea you implemented and its seed-0 score.',
-    '',
-    'Do not create any file other than solution.py. Do not write benchmark or test scripts, run other seeds, compare variants, or tune parameters.',
-  ].join('\n')
+  if (typeof parentFitness === 'number' && Number.isFinite(parentFitness)) {
+    lines.push(`This solution achieved a score of ${parentFitness}.`)
+  }
+
+  lines.push(
+    'Write a single complete solution directly between the #EVOLVE_START and #EVOLVE_END markers.',
+    'Do not create alternatives, backups, or multiple candidate versions, and do not iterate toward a variant.',
+    'You cannot run the code or benchmarks here: read the task, decide the change once, write it, and stop.',
+    'Remove any temporary scratch files you create before finishing.',
+  )
+
+  return lines.join('\n')
 }
 
 /**
@@ -44,7 +46,7 @@ export function defaultInstruction(parentFitness) {
  * @param {string} [options.description] - short label for the worker run.
  * @param {string} [options.persona] - persona instructions for the worker subagent.
  * @param {string} [options.model] - model id override for the worker.
- * @param {boolean} [options.allowShell=true] - whether shell tools are available to the worker.
+ * @param {boolean} [options.allowShell=false] - whether shell tools are available to the worker. Off by default: the worker writes one solution and the loop's evaluate step scores it.
  * @param {string[]} [options.allowedTools] - additional tool names granted to the worker.
  * @param {number} [options.maxDepth] - max delegation depth.
  * @param {object} evolve - the evolve service.
@@ -58,7 +60,7 @@ export async function mutate(options, evolve) {
     description,
     persona = defaultPersona(),
     model,
-    allowShell = true,
+    allowShell = false,
     allowedTools,
     maxDepth,
     ...extra
