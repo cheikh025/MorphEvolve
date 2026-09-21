@@ -9,7 +9,7 @@ export const name = 'dirspawn-worker'
 
 /** Default worker persona. */
 export function defaultPersona() {
-  return 'You are an autonomous algorithm and code optimization engineer. Produce exactly ONE improved implementation of the solution in your workspace by reasoning, not by trial and error; you cannot execute code here.'
+  return 'You are an autonomous algorithm and code optimization engineer. Produce exactly ONE improved implementation of the solution in your workspace by reasoning, not by trial and error.'
 }
 
 /**
