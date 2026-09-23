@@ -1,6 +1,6 @@
 # Evolve kit
 
-Everything needed to run EVOLVE on a new machine with the DeepSeek Harness (DSH): the two plugins, the Evolve preset, and the tasks. Written for Linux, with DSH run from a source clone — including a Docker container reached over SSH, with persistent data under `/data`.
+Everything needed to run EVOLVE on a new machine with the DeepSeek Harness (DSH): the two plugins, the Evolve preset, and the tasks. Written for Linux, with DSH run from a source clone — including a Docker container reached over SSH.
 
 ```text
 evolve-kit/
@@ -18,16 +18,19 @@ evolve-kit/
 
 ## Your paths
 
-Every command below uses these four variables. Set them in each new shell (or add them to a shell startup file that survives container restarts):
+Every command below uses these four path variables, all under one base folder you choose. Set them in each new shell (or add them to a shell startup file that survives restarts):
 
 ```bash
-export DSH_REPO=/data/cheikh/deepseek-harness   # your DSH clone (the folder with apps/cli/package.json)
-export DSH_HOME=/data/cheikh/.dsh               # DSH's home: profiles, presets, settings, sessions
-export KIT=/data/cheikh/evolve-kit              # this kit
-export TASKS=/data/cheikh/evolve-tasks          # where runs write
+export BASE=/path/you/choose                 # any folder that survives restarts
+export DSH_REPO=$BASE/deepseek-harness       # your DSH clone (the folder with apps/cli/package.json)
+export DSH_HOME=$BASE/.dsh                   # DSH's home: profiles, presets, settings, sessions
+export KIT=$BASE/evolve-kit                  # this kit
+export TASKS=$BASE/evolve-tasks              # where runs write
 ```
 
-**Why `DSH_HOME` is on `/data`:** by default DSH keeps everything in `~/.dsh`. In a container whose home folder is reset on restart, the installed plugins, the preset, your API settings and your sessions would disappear. `DSH_HOME` must have the **same value** when you run `setup.sh` and every time you start DSH — otherwise DSH reads another home and does not see the plugins or the preset.
+**In a container:** by default DSH keeps everything in `~/.dsh`. If the container's home folder is reset on restart, the installed plugins, the preset, your API settings and your sessions would disappear — put `BASE` on a persistent volume (for example a mounted `/data`).
+
+`DSH_HOME` must have the **same value** when you run `setup.sh` and every time you start DSH — otherwise DSH reads another home and does not see the plugins or the preset.
 
 ## Requirements
 
@@ -120,7 +123,7 @@ The first time, set up your model and API key in the page.
 
 ### 8. Start a run
 
-1. Start a new session with the **Evolve Mode** preset and a task folder as its working directory, for example `/data/cheikh/evolve-tasks/ahc002`.
+1. Start a new session with the **Evolve Mode** preset and a task folder as its working directory, for example `$TASKS/ahc002`.
 2. Give it the prompt in [`PROMPT.md`](PROMPT.md), which `setup.sh` also prints when it finishes. Change the task name in it to the folder you opened:
 
 ```
@@ -206,7 +209,7 @@ Restart DSH (`cd "$DSH_REPO" && pnpm dsh web --no-open`).
 - **`python not found`** — install `python-is-python3`, or put a `python` symlink to `python3` on your PATH.
 - **The page does not open** — forward port 3080 (step 7); DSH does not open a browser over SSH.
 - **Evaluation fails at the baseline with a permission error** — the session's sandbox mode is `read-only`; the evaluator needs `workspace-write` to write its temporary files.
-- **Everything disappeared after a container restart** — `DSH_HOME`, the clone, the kit or the tasks were outside `/data`.
+- **Everything disappeared after a container restart** — `DSH_HOME`, the clone, the kit or the tasks were not under a persistent folder.
 - **Evolve Mode is listed but cannot be selected** — its composition does not match your DSH version. For example, in 0.1.5 the persona plugin's settings changed from `text` to `prefix` and `suffix`. Compare it with your clone's `cordis` preset (see [After updating the DSH clone](#after-updating-the-dsh-clone)).
 - **`evolve_status` or a worker fails** — the plugins are built and tested against DSH 0.1.5-rc.2. On another version something they use may have changed; keep the exact error, since the plugin source may then need updating for that version.
 
