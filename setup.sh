@@ -264,6 +264,6 @@ echo "  cd $DSH_REPO && PATH=\"$BENCH_VENV/bin:\$PATH\" DSH_HOME=$DSH_HOME pnpm 
 echo "Then start a session with the \"Evolve Mode\" preset in a task folder."
 echo "After a run on an ALE-Bench task, its final score (private evaluation): $BENCH_PY $KIT/final_eval.py <task folder>"
 echo
-echo "The prompt to give that session ($KIT/PROMPT.md; change the task name to the folder you opened):"
+echo "The prompt to give that session ($KIT/PROMPT.md):"
 echo
 cat "$KIT/PROMPT.md"
