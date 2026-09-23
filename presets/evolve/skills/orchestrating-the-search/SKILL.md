@@ -38,8 +38,7 @@ Each task is one directory holding the whole problem: the statement, the baselin
 ├── solution.py        the baseline, with #EVOLVE_START / #EVOLVE_END markers
 │                      (solution.cpp on C++ tasks)
 ├── task.json          how the evaluator runs: the solution file, timeout, retries, sandbox, environment
-├── evaluator/         the fixed evaluator: evaluator.py defines evaluate(program_path);
-│                      ALE-Bench tasks also hold private_eval.py (see Finish)
+├── evaluator/         the fixed evaluator: evaluator.py defines evaluate(program_path)
 └── run/               created by evolve_run
     ├── candidates/
     │   ├── c000000/   the baseline: the statement and the solution file
@@ -118,7 +117,7 @@ The default evaluate already follows these rules. They also bind any evaluation 
 
 A candidate's **official fitness** is the score the task's evaluator gives it, run the way the default evaluate runs it: `evaluate()` from `<task>/evaluator/evaluator.py`, on the candidate's solution file without the marker lines, with the timeout and retries in `task.json`. The evaluator decides which instances or test cases it uses. Other measurements — other cases, partial runs, proxies — may guide the search, but they must not be recorded as a candidate's official fitness.
 
-`evaluator/private_eval.py`, on ALE-Bench tasks, is not an evaluator for the search: it scores hidden test cases once the search is over. Never run it, and never use its results.
+On ALE-Bench tasks, the benchmark's final result is a private evaluation on hidden test cases. It is run after the search, outside the task: it is not in the task folder and plays no part in the search.
 
 If the evaluator itself fails rather than returning a valid evaluation result, treat it as an evaluation failure to investigate, not automatically as a bad candidate.
 

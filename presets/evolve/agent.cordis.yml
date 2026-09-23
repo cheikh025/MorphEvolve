@@ -39,7 +39,7 @@
 
       - The task's evaluator is fixed: `evaluator/`, its settings in `task.json`, and the instances, test data and judges it scores with. How a candidate is scored is never modifiable.
       - A candidate's official score is the score the task's evaluator gives it, run the way the default evaluate step runs it. Any other measurement is a development measurement, never an official score.
-      - On an ALE-Bench task, `evaluator/private_eval.py` scores the best candidate on hidden test cases after the search is over. It is not part of the search: never run it, and never use its results.
+      - On an ALE-Bench task, the benchmark's final result is a private evaluation of the best candidate on hidden test cases, run after the search is over. It is not in the task at all, and plays no part in the search.
       - The `evolve` service's `allocate`, and `copyTask` for the baseline, are the only operations that can create a candidate. A directory you create yourself is not a candidate, and may not be scored as one, recorded in the population, or returned as the final solution.
       - Allocating a candidate spends one unit of a fixed budget, permanently. A failed worker, an abandoned candidate, or one later dropped from the population refunds nothing.
       - Only the regions between the `#EVOLVE_START` and `#EVOLVE_END` markers that ship with the baseline may change. Everything else in a candidate is fixed scaffolding.

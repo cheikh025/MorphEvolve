@@ -2,7 +2,7 @@
 
     <benchmark python> final_eval.py <task folder>
 
-As with EvoX, the private evaluation (the task's evaluator/private_eval.py, on the
+As with EvoX, the private evaluation (private_eval.py, next to this script, on the
 hidden test cases) runs once the search is over, on the best candidate in
 run/population.jsonl, chosen as the evolve loop chooses it. The search never sees these
 scores. Our #EVOLVE_START/#EVOLVE_END lines are removed from the program first.
@@ -29,9 +29,7 @@ def merit(fitness: float) -> float:
 
 def main() -> None:
     task = Path(sys.argv[1]).resolve()
-    private_eval = task / "evaluator" / "private_eval.py"
-    if not private_eval.is_file():
-        sys.exit(f"{task} has no evaluator/private_eval.py: its recorded fitness is its final score.")
+    private_eval = Path(__file__).resolve().parent / "private_eval.py"
     settings = json.loads((task / "task.json").read_text(encoding="utf-8"))
     lines = (task / "run" / "population.jsonl").read_text(encoding="utf-8").splitlines()
     best = max((json.loads(line) for line in lines if line.strip()), key=lambda row: merit(row["fitness"]))

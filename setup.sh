@@ -202,7 +202,14 @@ fi
 # Frontier-CS and ALE-Bench as their own READMEs install them, plus what the math
 # evaluators and starting programs import.
 echo "-- pip install (the first run takes several minutes)"
-"$BENCH_PY" -m pip install --quiet -e "$FRONTIER_CS_DIR" "$ALE_BENCH_DIR[eval]" \
+# Frontier-CS's skypilot dependency conflicts with ALE-Bench's pydantic-ai, and only its
+# cloud backend uses it: Frontier-CS goes in without it, its other dependencies alongside.
+frontier_deps="$("$BENCH_PY" -c 'import sys, tomllib
+deps = tomllib.load(open(sys.argv[1], "rb"))["project"]["dependencies"]
+print("\n".join(d for d in deps if not d.startswith("skypilot")))' "$FRONTIER_CS_DIR/pyproject.toml")"
+mapfile -t frontier_deps <<< "$frontier_deps"
+"$BENCH_PY" -m pip install --quiet --no-deps -e "$FRONTIER_CS_DIR"
+"$BENCH_PY" -m pip install --quiet "$ALE_BENCH_DIR[eval]" "${frontier_deps[@]}" \
   numpy scipy matplotlib jax optax
 "$BENCH_PY" -m pip freeze > "$BENCH_HOME/pip-freeze.txt"
 echo "-- evaluator Python: $BENCH_PY ($("$BENCH_PY" --version 2>&1)); package versions in $BENCH_HOME/pip-freeze.txt"
@@ -212,6 +219,8 @@ echo "-- ALE-Bench execution images (the first build pulls and builds several im
 (cd "$ALE_BENCH_DIR" && bash ./scripts/docker_build_all.sh "$(id -u)" "$(id -g)") \
   || fail "building the ALE-Bench images failed; see the docker output above."
 echo "-- Frontier-CS judge -> $FRONTIER_CS_JUDGE"
+# The judge image runs Node 20, and npm@latest no longer supports Node 20: npm 11 does.
+sed -i 's/npm install -g npm@latest/npm install -g npm@11/' "$FRONTIER_CS_DIR/algorithmic/Dockerfile"
 (cd "$FRONTIER_CS_DIR/algorithmic" && docker compose up -d --build) \
   || fail "the Frontier-CS judge did not start. It runs as a privileged container (go-judge), which Docker must allow."
 judge_up() {
