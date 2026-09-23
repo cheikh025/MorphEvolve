@@ -1,0 +1,9 @@
+{
+  "program": "solution.cpp",
+  "timeout": 300,
+  "max_retries": 3,
+  "sandbox": false,
+  "env": {
+    "FRONTIER_CS_PROBLEM": "45"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "program": "solution.py",
+  "timeout": 600,
+  "max_retries": 3,
+  "sandbox": true
+}

@@ -1,102 +1,80 @@
-﻿/**
- * Default evaluate provider: executes python evaluate.py with subprocess and timeout.
+/**
+ * Default evaluate provider: scores a candidate with its task's evaluator
+ * (<task>/evaluator/evaluator.py) through run_evaluator.py, which follows
+ * SkyDiscover's Evaluator. The task's settings are in <task>/task.json:
+ * `program` (the file that evolves), `timeout` and `max_retries` (as in
+ * SkyDiscover's evaluator config), `sandbox` (whether the evaluator runs in
+ * DSH's sandbox) and `env` (environment for the evaluator).
  *
  * @module dsh-evolve-loop/providers/evaluate
  */
 
-import { realpath } from 'node:fs/promises'
+import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 export const name = 'python-subprocess'
 
+const RUNNER = fileURLToPath(new URL('./run_evaluator.py', import.meta.url))
 const STDOUT_MAX_BYTES = 1024 * 1024
 const STDERR_MAX_BYTES = 64 * 1024
 const GRACE_MS = 2000
-const DEFAULT_TIMEOUT_MS = 60000
+// run_evaluator.py enforces the task's timeout; this only ends a runner that outlives all its attempts.
+const RUNNER_MARGIN_MS = 60_000
 
-function lastLine(text) {
-  const lines = text.split(/\r?\n/).filter(line => line.trim() !== '')
-  return lines[lines.length - 1] ?? ''
-}
-
-function parseScore(stdout) {
-  const lines = stdout.split(/\r?\n/).filter(line => line.trim() !== '')
-  // Scan backwards for JSON containing score/fitness
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const line = lines[i].trim()
-    try {
-      const obj = JSON.parse(line)
-      if (typeof obj?.score === 'number' && Number.isFinite(obj.score)) return obj.score
-      if (typeof obj?.fitness === 'number' && Number.isFinite(obj.fitness)) return obj.fitness
-    } catch {
-      // not json, continue
-    }
-  }
-  // Try parsing last line directly as a float
-  const last = lastLine(stdout)
-  const num = Number(last)
-  if (Number.isFinite(num)) return num
-  return null
-}
-
-export async function evaluateSeed(candidateDir, seed, evolve) {
-  const run = evolve.currentRun()
-  const { task, agent, signal } = run
+/**
+ * Score a candidate: the evaluator's result is saved to run/evals/<id>.json and its fitness returned.
+ * @param {{ id: string, dir: string }} candidate
+ * @param {object} evolve - the evolve service.
+ * @returns {Promise<number>}
+ */
+export async function evaluate(candidate, evolve) {
+  const { task, agent, signal } = evolve.currentRun()
   const ctx = evolve.ctx
+  const settings = JSON.parse(await readFile(join(task, 'task.json'), 'utf8'))
 
   const subprocess = ctx.get('subprocess')
   if (subprocess === undefined) throw new Error('the default evaluate needs the subprocess service')
   const python = await subprocess.resolveExecutable('python', undefined, signal)
-  let argv = [python, '-B', join(task, 'evaluate.py'), '--candidate', candidateDir, '--seed', String(seed)]
 
-  const policy = ctx.get('sandboxPolicy')?.resolve({ session: agent.session })
-  if (policy !== undefined && policy.mode !== 'danger-full-access') {
-    const sandbox = ctx.get('sandbox')
-    if (sandbox === undefined) throw new Error(`sandbox mode "${policy.mode}" needs the sandbox service`)
-    argv = sandbox.confine(argv, { ...policy, workspaceRoot: await realpath(candidateDir) }).argv
+  // The evaluator's temporary files, and the only place it may write when sandboxed.
+  const scratch = await realpath(await mkdtemp(join(tmpdir(), 'evolve-eval-')))
+  try {
+    let argv = [python, '-B', RUNNER, task, join(candidate.dir, settings.program)]
+    if (settings.sandbox) {
+      const policy = ctx.get('sandboxPolicy')?.resolve({ session: agent.session })
+      if (policy !== undefined && policy.mode !== 'danger-full-access') {
+        const sandbox = ctx.get('sandbox')
+        if (sandbox === undefined) throw new Error(`sandbox mode "${policy.mode}" needs the sandbox service`)
+        argv = sandbox.confine(argv, { ...policy, workspaceRoot: scratch }).argv
+      }
+    }
+
+    const limitMs = settings.timeout * (settings.max_retries + 1) * 1000 + RUNNER_MARGIN_MS
+    const handle = subprocess.spawn({
+      argv,
+      cwd: join(task, 'evaluator'),
+      env: { ...settings.env, TMPDIR: scratch },
+      stdio: { stdin: 'ignore', stdout: { maxBytes: STDOUT_MAX_BYTES }, stderr: { maxBytes: STDERR_MAX_BYTES } },
+      graceMs: GRACE_MS,
+      signal: AbortSignal.any([signal, AbortSignal.timeout(limitMs)]),
+    })
+    const outcome = await handle.done
+    signal.throwIfAborted()
+
+    const stdout = handle.collected.stdout.readFrom(0).text.trim()
+    if (outcome.exitCode !== 0 || stdout === '') {
+      const stderr = handle.collected.stderr.readFrom(0).text.trim()
+      throw new Error(`the evaluator of ${task} did not run on ${candidate.id} `
+        + `(exit ${String(outcome.exitCode ?? outcome.signal)})${stderr === '' ? '' : `:\n${stderr.slice(-2000)}`}`)
+    }
+    const result = JSON.parse(stdout.split(/\r?\n/).pop())
+    await evolve.files.write(`evals/${candidate.id}.json`, `${JSON.stringify(result, null, 2)}\n`)
+    return result.fitness
+  } finally {
+    await rm(scratch, { recursive: true, force: true })
   }
-
-  // Combine parent signal with per-seed timeout
-  const timeoutSignal = AbortSignal.timeout ? AbortSignal.timeout(DEFAULT_TIMEOUT_MS) : undefined
-  const effectiveSignal = timeoutSignal && AbortSignal.any ? AbortSignal.any([signal, timeoutSignal]) : signal
-
-  const handle = subprocess.spawn({
-    argv,
-    cwd: task,
-    stdio: { stdin: 'ignore', stdout: { maxBytes: STDOUT_MAX_BYTES }, stderr: { maxBytes: STDERR_MAX_BYTES } },
-    graceMs: GRACE_MS,
-    signal: effectiveSignal,
-  })
-
-  const outcome = await handle.done
-  signal.throwIfAborted()
-
-  const stdout = handle.collected.stdout.readFrom(0).text
-  const stderr = handle.collected.stderr.readFrom(0).text
-
-  const failed = detail => new Error(
-    `evaluate.py failed on ${candidateDir} for seed ${String(seed)}: ${detail}`
-    + (stderr.trim() === '' ? '' : `\n${stderr.trim().slice(-2000)}`),
-  )
-
-  if (outcome.exitCode !== 0) throw failed(`exit code ${String(outcome.exitCode ?? outcome.signal)}`)
-
-  const score = parseScore(stdout)
-  if (score === null) {
-    throw failed(`no numeric score found in evaluator output:\n${stdout.slice(-1000)}`)
-  }
-  return score
-}
-
-export async function evaluate(candidate, evolve) {
-  const { seeds } = await evolve.context()
-  const run = evolve.currentRun()
-  let sum = 0
-  for (const seed of seeds) {
-    run.signal.throwIfAborted()
-    sum += await evaluateSeed(candidate.dir, seed, evolve)
-  }
-  return sum / seeds.length
 }
 
 export default { name, evaluate }

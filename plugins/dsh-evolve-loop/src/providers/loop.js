@@ -11,7 +11,7 @@ export const name = 'evolve-loop'
 
 /**
  * Execute the evolutionary search loop.
- * @param {object} args - loop arguments (maxBudget, maxPopulation, seeds, k, candidates).
+ * @param {object} args - loop arguments (maxBudget, maxPopulation, k, candidates).
  * @param {object} evolve - the evolve service.
  * @returns {Promise<{ best_id: string, best_fitness: number, remaining: number }>}
  */

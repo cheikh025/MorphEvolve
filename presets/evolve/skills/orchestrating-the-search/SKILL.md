@@ -10,7 +10,7 @@ You are running EVOLVE: a search for the best solution to one task.
 
 **Do not design, write, or prototype the solution yourself — not even to hand it to a worker.**
 
-**A direction tells a worker where to look, never how to build.** Good directions come from the search: explore something unlike this parent; combine what worked in two candidates; fix the seeds a parent fails on; refine a parent's approach; try a family of method no candidate has used yet. Bad directions come from you solving the problem: algorithm skeletons, moves, data structures, parameters, expected scores.
+**A direction tells a worker where to look, never how to build.** Good directions come from the search: explore something unlike this parent; combine what worked in two candidates; fix the failures a parent's evaluation reports; refine a parent's approach; try a family of method no candidate has used yet. Bad directions come from you solving the problem: algorithm skeletons, moves, data structures, parameters, expected scores.
 
 A quick test: could you have written this direction without knowing how to solve the problem? If not, cut it back.
 
@@ -30,26 +30,27 @@ Think of this skill as the bootstrap for the search, not the final form of the s
 
 ## Understand the task workspace
 
-Each task is one flat directory holding the whole problem: the statement, the baseline solution, and the fixed files that generate and score instances. `evolve_run` creates its own `run/` directory inside it on the first call:
+Each task is one directory holding the whole problem: the statement, the baseline solution, and the task's fixed evaluator with its settings. `evolve_run` creates its own `run/` directory inside it on the first call:
 
 ```text
 <task>/
 ├── statement.md       the problem
 ├── solution.py        the baseline, with #EVOLVE_START / #EVOLVE_END markers
-├── generate.py        seed → instance
-├── judge.py           score one output
-├── evaluate.py        evaluate one candidate on one seed
-├── example_*.txt, images/, ...
+│                      (solution.cpp on C++ tasks)
+├── task.json          how the evaluator runs: the solution file, timeout, retries, sandbox, environment
+├── evaluator/         the fixed evaluator: evaluator.py defines evaluate(program_path);
+│                      ALE-Bench tasks also hold private_eval.py (see Finish)
 └── run/               created by evolve_run
     ├── candidates/
-    │   ├── c000000/   a full copy of the task
+    │   ├── c000000/   the baseline: the statement and the solution file
     │   ├── c000001/   a full copy of its parent
     │   └── ...
+    ├── evals/         the evaluator's full result for each candidate
     ├── population.jsonl
     └── budget.json
 ```
 
-The files supplied with the task are fixed. Do not modify anything at the task root — `statement.md`, `solution.py`, `generate.py`, `judge.py`, `evaluate.py`, or any other task-provided file. Changes happen only inside candidates.
+The files supplied with the task are fixed. Do not modify anything at the task root — `statement.md`, the solution file, `task.json`, `evaluator/`, or any other task-provided file. Changes happen only inside candidates.
 
 `<task>/run/` is EVOLVE's writable workspace. Everything produced by the search belongs there: candidate directories, population state, budget state, and any other state EVOLVE creates while searching.
 
@@ -69,7 +70,6 @@ EVOLVE may change its candidates and its own search machinery inside `run/`, but
 | argument | comes from | meaning |
 | --- | --- | --- |
 | `max_budget` | the user | total number of new candidates for the whole run; the baseline does not count |
-| `seeds` | the user | the official seeds every candidate is scored on — the full official set, never a subset |
 | `max_population` | you | how many alive candidates the population may hold before it is culled (default 10) |
 | `k` | you | how many candidates a cull keeps (default 5) |
 | `candidates` | you | the most new candidates this call may create; omit it to run until the budget is used |
@@ -78,23 +78,23 @@ The first call writes `max_budget` into `run/budget.json`, and every later call 
 
 ### The first call
 
-When `run/population.jsonl` has no rows, `evolve_run` first creates the baseline: it copies everything at the task root into `run/candidates/c000000/` (everything except `run/` itself and `__pycache__`), evaluates it on all seeds, and records it. The baseline does not consume candidate budget.
+When `run/population.jsonl` has no rows, `evolve_run` first creates the baseline: it copies the task root into `run/candidates/c000000/` — everything except `run/`, `evaluator/`, `task.json` and `__pycache__`, so the statement and the solution file — evaluates it, and records it. The baseline does not consume candidate budget.
 
 ### Each pass
 
 - **select** — picks a parent from the alive candidates. The default chooses in proportion to fitness.
 - **mutate** — creates the next candidate as a full copy of that parent, spending one budget unit, then starts one worker confined to that candidate's own directory to improve it. The default worker is told the parent's score and writes one complete solution between the markers; it has no shell, so it cannot run the code or compare variants — scoring is the loop's evaluate step.
-- **evaluate** — scores the candidate with the task-root evaluator, once per seed, and takes the mean. Each seed has 60 seconds.
+- **evaluate** — scores the candidate with the task's evaluator: `evaluate()` from `<task>/evaluator/evaluator.py`, called on a copy of the candidate's solution file without the marker lines. The evaluator chooses its own instances or test cases, and the fitness is its `combined_score`. A call that runs past `timeout` (from `task.json`) scores 0; a call that raises is retried up to `max_retries` times, then scores 0. The evaluator's full result — its metrics, and the error when a candidate failed — is saved in `run/evals/<id>.json`.
 - **record** — appends one row to `run/population.jsonl`: `{"id", "parent", "fitness", "survival": "yes"}`.
 - **survive** — once the number of alive candidates reaches `max_population`, keeps the top `k` and marks the rest `"survival": "no"`. Culled candidates keep their directories and their rows.
 
-A worker that fails leaves its candidate unchanged; the candidate is still evaluated and recorded, and its budget unit stays spent. That is an ordinary outcome. An evaluator failure is different: it stops the call with the error, and it is something to investigate, not a bad candidate.
+A worker that fails leaves its candidate unchanged; the candidate is still evaluated and recorded, and its budget unit stays spent. That is an ordinary outcome, and so is a candidate that does not compile, crashes, runs out of time or gives an invalid answer: it scores 0, and `run/evals/<id>.json` says why. An evaluator that cannot run at all is different: when it cannot even be loaded, it stops the call with the error, and it is something to investigate, not a bad candidate. Scores of 0 whose error is about Docker or the judge rather than the candidate are the same kind of problem.
 
 The default steps treat higher fitness as better.
 
 ### Run in chunks
 
-Pass `candidates` so that each call creates a few candidates and returns. Between calls, read `run/population.jsonl`: which parents are producing improvements, whether the best fitness is still moving, whether the alive candidates have collapsed into one line of descent (follow `parent`). Then call `evolve_run` again with the same `max_budget` and `seeds`; the run continues where it stopped, and the baseline is not redone.
+Pass `candidates` so that each call creates a few candidates and returns. Between calls, read `run/population.jsonl`: which parents are producing improvements, whether the best fitness is still moving, whether the alive candidates have collapsed into one line of descent (follow `parent`). Then call `evolve_run` again with the same `max_budget`; the run continues where it stopped, and the baseline is not redone.
 
 The chunks are where you notice whether the search is still producing. Changes to the search machinery also happen between calls: the next call uses whatever is registered at that moment.
 
@@ -108,23 +108,17 @@ The directory the worker is confined to is its entire world: it can write there 
 
 A worker starts with no history of this conversation and no memory of previous workers. Everything it needs comes from the prompt you write and from the files inside its candidate directory. The worker reads the problem from `statement.md` in its own directory, so do not restate it. Tell it what fitness means for this run, the rules it must keep, its direction, and any other useful instructions about how to work — never how to solve. Ask it to end with a short report in its final reply: what it tried, what it measured, and what it would try next. That report is how you learn what works without solving the problem yourself — but the default mutate discards it, so a mutate that wants reports must keep them, for example as a file under `run/`.
 
-Every candidate carries its own copy of the evaluator, so a worker can test its work without leaving its directory. With shell access, which the default mutate grants, it runs `python -B evaluate.py --candidate . --seed <n>` inside the candidate. `-B` stops Python writing `__pycache__` into the candidate, where it would be frozen once the candidate is recorded and inherited by every child.
+A candidate holds only the statement and the solution file. The evaluator stays at the task root, out of the worker's reach, so a worker cannot score its own work; scoring is the loop's evaluate step.
 
-**Only the regions between `#EVOLVE_START` and `#EVOLVE_END` may change.** Everything else in a candidate — including its copies of the statement, generator, judge and evaluator — is fixed scaffolding. Nothing enforces this, so say it in the worker's prompt, and check candidates when their scores look implausible.
+**Only the regions between `#EVOLVE_START` and `#EVOLVE_END` may change.** Everything else in a candidate — including its copy of the statement — is fixed scaffolding. Nothing enforces this, so say it in the worker's prompt, and check candidates when their scores look implausible.
 
-## Evaluate on the full official set
+## Official scores come from the task's evaluator
 
 The default evaluate already follows these rules. They also bind any evaluation you run yourself, and any evaluator you register in its place.
 
-An **official fitness** must be based on the complete official evaluation set. Partial evaluations or additional development instances may be useful during the search, but they must not be recorded as the candidate's official fitness.
+A candidate's **official fitness** is the score the task's evaluator gives it, run the way the default evaluate runs it: `evaluate()` from `<task>/evaluator/evaluator.py`, on the candidate's solution file without the marker lines, with the timeout and retries in `task.json`. The evaluator decides which instances or test cases it uses. Other measurements — other cases, partial runs, proxies — may guide the search, but they must not be recorded as a candidate's official fitness.
 
-Official scores always come from the task's own evaluator at the task root, run against the candidate:
-
-```
-python -B <task>/evaluate.py --candidate <task>/run/candidates/<id> --seed <n>
-```
-
-Never use the evaluator inside a candidate for an official score. A candidate is writable by its worker, so its copies of `evaluate.py`, `judge.py` and `generate.py` may have been changed. The task-root evaluator takes only `solution.py` from the candidate and scores it with its own, untouched generator and judge.
+`evaluator/private_eval.py`, on ALE-Bench tasks, is not an evaluator for the search: it scores hidden test cases once the search is over. Never run it, and never use its results.
 
 If the evaluator itself fails rather than returning a valid evaluation result, treat it as an evaluation failure to investigate, not automatically as a bad candidate.
 
@@ -136,7 +130,7 @@ Recording happens inside the loop, after evaluation. A recorded candidate is fin
 
 `evolve_run` returns `best_id`, `best_fitness` and `remaining`. `best_fitness` is the highest fitness recorded in the run so far. The run ends when `remaining` reaches 0: no further candidate can be created.
 
-Then report to the user: the best candidate's id, its official score, and where its directory is (`<task>/run/candidates/<id>`). Confirm the number by re-scoring that directory with the task-root evaluator on every official seed before you report it.
+Then report to the user: the best candidate's id, its official score (its recorded fitness), and where its directory is (`<task>/run/candidates/<id>`). On an ALE-Bench task, the benchmark's final result is the private evaluation of that candidate on hidden test cases, which is run after the session — not by you.
 
 ## Changing the search itself
 

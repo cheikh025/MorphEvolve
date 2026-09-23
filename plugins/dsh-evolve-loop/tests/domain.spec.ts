@@ -1,4 +1,4 @@
-﻿import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+﻿import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -85,13 +85,19 @@ describe('candidates domain', () => {
     expect(candidateId(999)).toBe('c000999')
   })
 
-  it('copies task into baseline c000000', async () => {
+  it('copies task into baseline c000000, leaving the evaluator and task.json out', async () => {
+    await mkdir(join(taskDir, 'evaluator'))
+    await writeFile(join(taskDir, 'evaluator', 'evaluator.py'), 'def evaluate(path): return {}\n', 'utf8')
+    await writeFile(join(taskDir, 'task.json'), '{}\n', 'utf8')
+    await writeFile(join(taskDir, 'statement.md'), 'Make VALUE large.\n', 'utf8')
+
     const base = await copyTask(runDir, taskDir)
     expect(base.id).toBe('c000000')
     expect(await isCandidate(runDir, 'c000000')).toBe(true)
 
     const copiedContent = await readFile(join(base.path, 'solution.py'), 'utf8')
     expect(copiedContent).toBe('VALUE = 10\n')
+    expect((await readdir(base.path)).sort()).toEqual(['solution.py', 'statement.md'])
   })
 
   it('allocates sequential candidates from parent', async () => {

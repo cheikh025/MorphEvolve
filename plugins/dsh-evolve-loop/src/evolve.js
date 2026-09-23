@@ -165,16 +165,12 @@ export class Evolve {
     const {
       maxBudget,
       maxPopulation = DEFAULT_MAX_POPULATION,
-      seeds,
       k = DEFAULT_K,
       candidates,
     } = args ?? {}
 
     requirePositiveInteger('maxBudget', maxBudget)
     requirePositiveInteger('maxPopulation', maxPopulation)
-    if (!Array.isArray(seeds) || seeds.length === 0 || !seeds.every(Number.isSafeInteger)) {
-      throw new Error('seeds must be a non-empty list of integers')
-    }
     optionalPositiveInteger('k', k)
     optionalPositiveInteger('candidates', candidates)
     if (exec?.agent === undefined) throw new Error('evolve.run needs the calling agent (exec.agent)')
@@ -188,7 +184,6 @@ export class Evolve {
       root,
       agent: exec.agent,
       signal: exec.signal ?? new AbortController().signal,
-      seeds: Object.freeze([...seeds]),
       k,
       maxPopulation,
       candidates,
@@ -290,7 +285,6 @@ export class Evolve {
     return {
       task: run.task,
       root: run.root,
-      seeds: [...run.seeds],
       k: run.k,
       maxPopulation: run.maxPopulation,
       candidates: run.candidates,

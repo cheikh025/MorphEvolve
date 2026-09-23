@@ -96,7 +96,7 @@ describe('provider swapping', () => {
     expect(inst).toContain('#EVOLVE_END')
     expect(inst).toContain('This solution achieved a score of 42.')
 
-    await runTool({ max_budget: 1, seeds: [1] })
+    await runTool({ max_budget: 1 })
     expect(capturedStartRequests).toHaveLength(1)
     const req = capturedStartRequests[0]
     // Baseline c000000 scored 10 in fixture, so candidate c000001 gets score 10 feedback
@@ -112,7 +112,7 @@ describe('provider swapping', () => {
     expect(inst).toContain('You cannot run the code or benchmarks here')
     expect(pers).toContain('you cannot execute code here')
 
-    await runTool({ max_budget: 1, seeds: [1] })
+    await runTool({ max_budget: 1 })
     // The prompt says the worker cannot execute; the guard is what makes that true.
     expect(capturedStartRequests[0].confine.allowShell).toBe(false)
   })
@@ -136,7 +136,7 @@ describe('provider swapping', () => {
       },
     })
 
-    await runTool({ max_budget: 1, seeds: [1] })
+    await runTool({ max_budget: 1 })
 
     expect(capturedStartRequests).toHaveLength(1)
     const req = capturedStartRequests[0]
@@ -161,7 +161,7 @@ describe('provider swapping', () => {
 
     expect(evolve.listProviders().select).toBe('always-baseline-selection')
 
-    await runTool({ max_budget: 1, max_population: 10, seeds: [1] })
+    await runTool({ max_budget: 1, max_population: 10 })
     expect(customSelected).toBe(true)
 
     // Dispose restores previous provider
@@ -179,7 +179,7 @@ describe('provider swapping', () => {
 
     expect(evolve.listProviders().evaluate).toBe('constant-score-evaluator')
 
-    const result = await runTool({ max_budget: 1, max_population: 10, seeds: [1] })
+    const result = await runTool({ max_budget: 1, max_population: 10 })
     expect(result.best_fitness).toBe(999.5)
   })
 
@@ -196,7 +196,7 @@ describe('provider swapping', () => {
       },
     })
 
-    const result = await runTool({ max_budget: 1, max_population: 10, seeds: [1] })
+    const result = await runTool({ max_budget: 1, max_population: 10 })
     expect(customMutated).toBe(true)
     expect(result.best_fitness).toBe(110) // baseline 10 + 100
   })
@@ -213,7 +213,7 @@ describe('provider swapping', () => {
       },
     })
 
-    await runTool({ max_budget: 2, max_population: 2, seeds: [1] })
+    await runTool({ max_budget: 2, max_population: 2 })
     expect(customSurviveCalled).toBe(true)
   })
 
@@ -231,7 +231,7 @@ describe('provider swapping', () => {
 
     expect(evolve.listProviders().loop).toBe('mock-instant-loop')
 
-    const result = await runTool({ max_budget: 50, max_population: 10, seeds: [1] })
+    const result = await runTool({ max_budget: 50, max_population: 10 })
     expect(result).toEqual({
       best_id: 'c_custom',
       best_fitness: 1337,

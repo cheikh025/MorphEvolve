@@ -28,7 +28,8 @@ export function apply(ctx) {
       'Run the evolutionary search on the task in your working directory, and wait until it stops. '
       + 'Its state lives in run/ inside the task. When the population is empty, the baseline c000000 is created, '
       + 'evaluated and recorded without spending budget. Each search iteration selects a parent, generates a new '
-      + 'candidate, evaluates it over the official seeds, records it in population.jsonl, and culls excess candidates. '
+      + 'candidate, scores it with the task\'s evaluator (evaluator/evaluator.py, settings in task.json), records it '
+      + 'in population.jsonl, and culls excess candidates. '
       + 'Returns the best candidate ID, its fitness, and remaining budget: { best_id, best_fitness, remaining }. '
       + 'All search components (evolve-loop, select, mutate, evaluate, survive) are swappable via ctx.evolve.register().',
     parameters: {
@@ -40,12 +41,6 @@ export function apply(ctx) {
       max_population: {
         type: 'integer',
         description: `How many alive candidates the population may hold before it is culled. Default ${DEFAULT_MAX_POPULATION}.`,
-      },
-      seeds: {
-        type: 'array',
-        items: { type: 'integer' },
-        required: true,
-        description: 'The official seeds every candidate is scored on, from the user\'s instruction.',
       },
       k: {
         type: 'integer',
@@ -72,7 +67,6 @@ export function apply(ctx) {
       const result = await evolve.run({
         maxBudget: args.max_budget,
         ...(args.max_population === undefined ? {} : { maxPopulation: args.max_population }),
-        seeds: args.seeds,
         ...(args.k === undefined ? {} : { k: args.k }),
         ...(args.candidates === undefined ? {} : { candidates: args.candidates }),
       }, exec)

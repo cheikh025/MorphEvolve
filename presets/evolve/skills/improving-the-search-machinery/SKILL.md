@@ -59,8 +59,8 @@ Improving the search does not permit changing what defines a valid solution or a
 
 You must not change:
 
-* the task-provided evaluator or instance generator;
-* the official evaluation set;
+* the task's evaluator (`evaluator/`) or its settings (`task.json`);
+* the instances and test data the evaluator scores with;
 * the definition of official fitness;
 * the candidate budget, or the operations that create candidates — `allocate` and `copyTask`;
 * the allowed editable regions of candidate solutions;
@@ -102,7 +102,7 @@ Every method receives the service as `evolve`. These operations on it are fixed,
 - `copyTask()` — creates the baseline `c000000`; returns `{ id, dir }`.
 - `population()` — the run's population file: `rows()`, `append(row)`, `write(rows)`.
 - `files` — a run-scoped file store for machinery state: `resolve(path)`, `write(path, text)`, `append(path, text)`, `read(path)` (undefined when absent), `list(dir)`, `exists(path)`, `remove(path)`. Paths are relative to the run directory (`run/`) and cannot escape it.
-- `context()` — `{ task, root, seeds, k, maxPopulation, candidates, budget: { max, used, remaining } }`.
+- `context()` — `{ task, root, k, maxPopulation, candidates, budget: { max, used, remaining } }`.
 - `spawnWorker(dir, prompt, options)` — starts one worker confined to `dir` and waits for it; returns `{ text, stopReason }`. `options` may set `description`, `persona`, `model`, `allowShell`, `allowedTools` and `maxDepth`.
 
 Persist machinery state (scores, reports, logs, digests) with `evolve.files`, never with `node:fs` or `ctx.fs`. The dynamic sandbox has no `node:fs`, and `ctx.fs` is policy-fenced: a dynamic plugin calls `writeText` without a per-call sandbox policy, so the fence resolves the deployment default policy (`workspace-write`, workspace root `process.cwd()`) and a write under the run directory fails with `FS_SANDBOX_DENIED`. The `evolve.files` handle runs in the plugin's host half, which has no such fence.
@@ -138,7 +138,7 @@ Nothing checks these, so a provider you write must keep them:
 - **A mutate or loop you write must create every new candidate with `allocate`.** The loop stops when the budget is used up. A mutate that never calls `allocate` never spends budget, so without a `candidates` limit the loop never stops — and every pass still pays for a worker and a full evaluation.
 - **A mutate must return the candidate it just allocated**, never an existing or already recorded one.
 - **An evaluate must return a finite number.** A missing or non-numeric fitness is written into the population as it is, and silently corrupts selection, culling and the reported best.
-- **Official fitness still comes from the task-root evaluator on every official seed,** whatever evaluate provider is active.
+- **Official fitness still comes from the task's evaluator, run the way the default evaluate runs it,** whatever evaluate provider is active.
 - **Confine every worker to its candidate's own directory.** `spawnWorker` also accepts `options.confine`, which can override the directory; do not use it to widen what a worker can write.
 - **Only candidates created by `allocate` or `copyTask` may be recorded.** Recording normally happens inside the loop; a provider that writes rows through `population()` must keep this rule itself.
 - **The default select, survive and loop all treat higher fitness as better.**

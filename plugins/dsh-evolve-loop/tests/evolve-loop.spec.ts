@@ -91,7 +91,6 @@ describe('dsh-evolve-loop', () => {
     const result = await runTool({
       max_budget: 3,
       max_population: 10,
-      seeds: [1],
       candidates: 2,
     })
 
@@ -108,19 +107,27 @@ describe('dsh-evolve-loop', () => {
     expect(records[0]).toEqual({ id: 'c000000', parent: null, fitness: 10, survival: 'yes' })
     expect(records[1]).toEqual({ id: 'c000001', parent: 'c000000', fitness: 15, survival: 'yes' })
     expect(records[2]).toMatchObject({ id: 'c000002', fitness: 20, survival: 'yes' })
+
+    // The evaluator's full result is kept for each candidate
+    const evaluation = JSON.parse(await readFile(join(task, 'run', 'evals', 'c000001.json'), 'utf8'))
+    expect(evaluation).toEqual({ fitness: 15, metrics: { combined_score: 15 } })
+  })
+
+  it('stops the run when the task evaluator cannot be loaded', async () => {
+    await writeFile(join(task, 'evaluator', 'evaluator.py'), 'import no_such_module\n', 'utf8')
+    await expect(runTool({ max_budget: 1 }))
+      .rejects.toThrow(/did not run on c000000[\s\S]*no_such_module/)
   })
 
   it('exhausts budget and enforces max_budget consistency', async () => {
     const first = await runTool({
       max_budget: 2,
-      seeds: [1],
       candidates: 1,
     })
     expect(first.remaining).toBe(1)
 
     const second = await runTool({
       max_budget: 2,
-      seeds: [1],
     })
     expect(second.remaining).toBe(0)
     expect(second.best_fitness).toBe(20)
@@ -128,14 +135,12 @@ describe('dsh-evolve-loop', () => {
     // Cannot change max_budget
     await expect(runTool({
       max_budget: 5,
-      seeds: [1],
     })).rejects.toThrow(/the budget for this run is already 2/)
   })
 
   it('applies default max_population = 10 and k = 5 when omitted', async () => {
     const result = await runTool({
       max_budget: 11, // baseline (0) + 11 candidates = 12 total entries
-      seeds: [1],
     })
 
     expect(result.best_id).toBe('c000011')
@@ -150,12 +155,10 @@ describe('dsh-evolve-loop', () => {
   })
 
   it('validates tool arguments', async () => {
-    await expect(runTool({ max_budget: 0, seeds: [1] }))
+    await expect(runTool({ max_budget: 0 }))
       .rejects.toThrow('maxBudget must be a positive integer')
-    await expect(runTool({ max_budget: 10, max_population: 0, seeds: [1] }))
+    await expect(runTool({ max_budget: 10, max_population: 0 }))
       .rejects.toThrow('maxPopulation must be a positive integer')
-    await expect(runTool({ max_budget: 10, seeds: [] }))
-      .rejects.toThrow('seeds must be a non-empty list of integers')
   })
 
   it('renders clean high-signal text for the model', async () => {
@@ -177,7 +180,6 @@ describe('dsh-evolve-loop', () => {
     }
     const result = await runTool({
       max_budget: 1,
-      seeds: [1],
     })
     expect(result.best_id).toBe('c000000')
     expect(result.remaining).toBe(0)
@@ -193,7 +195,7 @@ describe('dsh-evolve-loop', () => {
     evolve.register('mutate', async () => {
       controller.abort()
     })
-    await expect(runTool({ max_budget: 3, seeds: [1] }, controller.signal))
+    await expect(runTool({ max_budget: 3 }, controller.signal))
       .rejects.toMatchObject({ name: 'AbortError' })
 
     expect(() => evolve.currentRun()).toThrow('no evolve run is in progress')
@@ -201,7 +203,7 @@ describe('dsh-evolve-loop', () => {
 
   it('fails loud when missing dirspawn subagent provider', async () => {
     hasProvider = false
-    await expect(runTool({ max_budget: 2, seeds: [1] }))
+    await expect(runTool({ max_budget: 2 }))
       .rejects.toThrow('evolve needs the "dirspawn" subagent provider')
   })
 
@@ -218,9 +220,9 @@ describe('dsh-evolve-loop', () => {
       return cand
     })
 
-    const first = runTool({ max_budget: 1, seeds: [1] })
+    const first = runTool({ max_budget: 1 })
     await inside
-    await expect(runTool({ max_budget: 1, seeds: [1] })).rejects.toThrow('already in progress')
+    await expect(runTool({ max_budget: 1 })).rejects.toThrow('already in progress')
     release()
     await expect(first).resolves.toBeDefined()
   })

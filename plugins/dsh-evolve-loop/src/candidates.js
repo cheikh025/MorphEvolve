@@ -81,7 +81,9 @@ export async function isCandidate(runDir, id) {
 }
 
 /**
- * Create baseline c000000 by copying the task workspace (excluding run/ and __pycache__).
+ * Create baseline c000000 by copying the task workspace. The evaluator and its settings
+ * (evaluator/, task.json) stay at the task root, out of the worker's reach; run/ and
+ * __pycache__ are not copied either.
  * @param {string} runDir - the run root directory.
  * @param {string} taskDir - the task workspace directory.
  * @returns {Promise<{ id: string, path: string }>}
@@ -90,7 +92,7 @@ export async function copyTask(runDir, taskDir) {
   const destination = candidatePath(runDir, BASELINE_ID)
   await rm(destination, { recursive: true, force: true })
   await mkdir(destination, { recursive: true })
-  const skip = name => name === RUN_DIR || name === '__pycache__'
+  const skip = name => [RUN_DIR, '__pycache__', 'evaluator', 'task.json'].includes(name)
   for (const name of await readdir(taskDir)) {
     if (skip(name)) continue
     await cp(join(taskDir, name), join(destination, name), {

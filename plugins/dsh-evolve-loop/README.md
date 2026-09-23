@@ -9,7 +9,7 @@ The search is decomposed into modular Service Providers coordinated by the `evol
 1. **`evolve-loop` (`loop`)**: Coordinates iteration cycles, baseline handling, budget consumption, and termination.
 2. **`select`**: Selects parent candidate(s) from alive population (default: fitness-proportional roulette wheel).
 3. **`mutate`**: Manages candidate generation, directory allocation, and worker subagent variation (default: `dirspawn` subagent).
-4. **`evaluate`**: Scores candidate across official seeds with timeout protection (default: subprocess `evaluate.py`).
+4. **`evaluate`**: Scores a candidate with the task's evaluator, `evaluate(program_path)` in `<task>/evaluator/evaluator.py`, following SkyDiscover's evaluator: the task's timeout and retries from `<task>/task.json`, fitness from `combined_score`. The full result is kept in `run/evals/<id>.json` (default: `src/providers/run_evaluator.py` in a `python` subprocess).
 5. **`survive`**: Population capacity management and culling (default: top-k retention, default k=5).
 
 ## Domain Persistence Modules
@@ -65,7 +65,6 @@ When the plugin is unloaded or reloaded, Cordis automatically invokes the dispos
 
 The `evolve_run` tool takes:
 - `max_budget`: Total new candidate budget for the entire run (required).
-- `seeds`: Official evaluation seeds (required).
 - `max_population` (optional): Population capacity before triggering `survive` (default 10).
 - `k` (optional): Survivors to keep during culling (default 5).
 - `candidates` (optional): Max candidates to create in this invocation.
@@ -91,8 +90,10 @@ Rendered text:
 <task>/run/
 ├── budget.json          # { "max": 50 }
 ├── population.jsonl     # {"id":"c000001","parent":"c000000","fitness":85.0,"survival":"yes"}
+├── evals/
+│   └── c000001.json     # {"fitness": 85.0, "metrics": {...}}: the evaluator's full result
 └── candidates/
-    ├── c000000/         # Baseline copy of task (0 budget)
+    ├── c000000/         # Baseline copy of task, without evaluator/ and task.json (0 budget)
     ├── c000001/         # Attempt 1 (1 budget)
     └── ...
 ```
