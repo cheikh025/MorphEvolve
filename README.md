@@ -107,12 +107,19 @@ ssh -L 3080:127.0.0.1:3080 <user>@<container-host>
 
 This works when your SSH session lands inside the container. If you reach the container another way (for example SSH to a host, then `docker exec`), the container's `127.0.0.1` is not the host's, and port 3080 must also be published by the container.
 
-The first time, set up your model and API key in the page.
+The first time, add your DeepSeek API key in the page.
 
 ### Step 8. Start a run
 
-1. Start a new session with the **Evolve Mode** preset and a task folder as its working directory, for example `$TASKS/ahc002`.
-2. Give it the prompt in [`PROMPT.md`](PROMPT.md), which `setup.sh` also prints when it finishes:
+In the DSH page, for each run:
+
+1. Start a new session.
+2. Select the **Evolve Mode** preset.
+3. Set the working directory to a task folder, for example `$TASKS/ahc002`.
+4. Choose the model **DeepSeek Flash 4.1**.
+5. Set reasoning to **max**.
+6. Give it **full access**.
+7. Give it the prompt in [`PROMPT.md`](PROMPT.md), which `setup.sh` also prints when it finishes:
 
 ```
 Improve the solution for the task in this folder by orchestrating and improving the search process. Fitness is the mean score over seeds 0 to 49, and the total budget is 100 candidates. Run evolve_run in small chunks rather than using the full budget at once. Between chunks, analyze the results and determine which part or mechanism of the search is limiting progress, stalling, underperforming, or could be made more effective. Update and improve that specific search mechanism, then run another small chunk and repeat this process. Make improvements whenever the search stalls or when the run data suggests that some part of the search machinery could be better. Do not focus on directly solving the task yourself; your role is to orchestrate, diagnose, and improve the search machinery so that the search can discover better solutions. Do not use the web, do not search for existing solutions, and do not give any subagent the option to use the web or search externally for solutions.
