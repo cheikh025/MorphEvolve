@@ -1,3 +1,3 @@
 name: Evolve Mode
-description: A self-improving search agent. Everything creator mode can do, plus the tools to run a candidate search and rewrite its own search machinery while the run is in progress.
+description: A self-improving search agent. Everything creator mode can do, plus the tools to run a candidate search and revise its own search strategy while the run is in progress.
 order: 5

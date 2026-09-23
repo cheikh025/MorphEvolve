@@ -19,7 +19,7 @@ import { populationOf } from './population.js'
 import { filesOf } from './files.js'
 
 export const PROVIDER_SLOTS = Object.freeze(['loop', 'select', 'mutate', 'evaluate', 'survive'])
-export const WORKER_PROVIDER = 'dirspawn'
+export const WORKER_PROVIDER = 'candidate-builder'
 export const DEFAULT_MAX_POPULATION = 10
 export { DEFAULT_K }
 
@@ -264,7 +264,7 @@ export class Evolve {
   }
 
   /**
-   * Run-scoped file store for search machinery.
+   * Run-scoped file store for search state.
    *
    * A neutral storage primitive: it reads and writes bytes under the run
    * directory (`run/`) and carries no memory or search strategy. Dynamic
@@ -293,10 +293,10 @@ export class Evolve {
   }
 
   /**
-   * Spawn a worker subagent confined to dir, supporting all dirspawn parameters.
+   * Spawn a worker subagent confined to dir, supporting all candidate-builder parameters.
    * @param {string} dir - directory the worker is confined to.
    * @param {string} prompt - task prompt for the worker.
-   * @param {object} [options] - dirspawn parameters (description, persona, model, allowShell, allowedTools, maxDepth).
+   * @param {object} [options] - candidate-builder parameters (description, persona, model, allowShell, allowedTools, maxDepth).
    */
   async spawnWorker(dir, prompt, options = {}) {
     const run = this.currentRun()

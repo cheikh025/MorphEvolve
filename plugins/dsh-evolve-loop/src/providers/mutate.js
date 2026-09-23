@@ -1,15 +1,15 @@
 ﻿/**
  * Default mutate / variation provider: allocates candidate directory and spawns a worker subagent.
- * Supports all dirspawn configuration parameters (instruction, description, persona, model, allowShell, allowedTools).
+ * Accepts per-worker instruction, name, persona, model, and tool settings.
  *
  * @module dsh-evolve-loop/providers/mutate
  */
 
-export const name = 'dirspawn-worker'
+export const name = 'candidate-builder'
 
 /** Default worker persona. */
 export function defaultPersona() {
-  return 'You are an autonomous algorithm and code optimization engineer. Produce exactly ONE improved implementation of the solution in your workspace by reasoning, not by trial and error.'
+  return 'You are a solution worker in an evolutionary search. Design and implement one complete candidate in your assigned directory.'
 }
 
 /**
@@ -19,19 +19,19 @@ export function defaultPersona() {
  */
 export function defaultInstruction(parentFitness) {
   const lines = [
-    'Inspect the current directory and understand the task.',
-    'Examine the current solution implemented between the evolve markers (#EVOLVE_START and #EVOLVE_END).',
+    'Read the task statement and the parent solution in this directory.',
   ]
 
   if (typeof parentFitness === 'number' && Number.isFinite(parentFitness)) {
-    lines.push(`This solution achieved a score of ${parentFitness}.`)
+    lines.push(`The parent candidate's official fitness was ${parentFitness}.`)
   }
 
   lines.push(
-    'Write a single complete solution directly between the #EVOLVE_START and #EVOLVE_END markers.',
-    'Do not create alternatives, backups, or multiple candidate versions, and do not iterate toward a variant.',
-    'You cannot run the code or benchmarks here: read the task, decide the change once, write it, and stop.',
-    'Remove any temporary scratch files you create before finishing.',
+    'Understand how the current solution works, consider how it could better satisfy the task, and implement your chosen improvement as one complete candidate.',
+    'Edit only the solution code between the #EVOLVE_START and #EVOLVE_END markers; leave all other task files and code unchanged.',
+    'This directory is one allocated candidate and one complete solution attempt. You may reason about alternatives, but do not write, run, or compare several complete implementations here. A different complete attempt requires another candidate and uses another budget unit.',
+    'You may compile or run validity checks for this implementation and fix errors they reveal. Do not run the task\'s official evaluator or performance benchmarks; the search loop evaluates your candidate after you finish.',
+    'Leave one complete solution and remove temporary files before finishing.',
   )
 
   return lines.join('\n')
@@ -43,10 +43,11 @@ export function defaultInstruction(parentFitness) {
  * @param {string} options.parent - parent candidate id (required).
  * @param {number} [options.parentFitness] - fitness score of the parent candidate.
  * @param {string} [options.instruction] - task instruction for the worker subagent.
- * @param {string} [options.description] - short label for the worker run.
+ * @param {string} [options.name='mutator'] - worker name shown in subagent listings.
+ * @param {string} [options.description] - existing worker label option, used when name is omitted.
  * @param {string} [options.persona] - persona instructions for the worker subagent.
  * @param {string} [options.model] - model id override for the worker.
- * @param {boolean} [options.allowShell=false] - whether shell tools are available to the worker. Off by default: the worker writes one solution and the loop's evaluate step scores it.
+ * @param {boolean} [options.allowShell=true] - whether shell tools are available to the worker. On by default for compilation and validity checks.
  * @param {string[]} [options.allowedTools] - additional tool names granted to the worker.
  * @param {number} [options.maxDepth] - max delegation depth.
  * @param {object} evolve - the evolve service.
@@ -57,10 +58,11 @@ export async function mutate(options, evolve) {
     parent,
     parentFitness: providedFitness,
     instruction: providedInstruction,
+    name: workerName,
     description,
     persona = defaultPersona(),
     model,
-    allowShell = false,
+    allowShell = true,
     allowedTools,
     maxDepth,
     ...extra
@@ -79,11 +81,11 @@ export async function mutate(options, evolve) {
 
   const instruction = providedInstruction ?? defaultInstruction(parentFitness)
   const candidate = await evolve.allocate(parent)
-  const workerDescription = description ?? `Mutate candidate ${candidate.id}`
+  const workerLabel = workerName ?? description ?? 'mutator'
 
   try {
     await evolve.spawnWorker(candidate.dir, instruction, {
-      description: workerDescription,
+      label: workerLabel,
       persona,
       model,
       allowShell,

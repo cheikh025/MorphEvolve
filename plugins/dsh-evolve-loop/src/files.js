@@ -1,5 +1,5 @@
 /**
- * Run-scoped file store: a neutral, raw file I/O primitive for search machinery.
+ * Run-scoped file store: a neutral, raw file I/O primitive for search state.
  *
  * A dynamic (sandboxed) Cordis host plugin cannot use `node:fs`, and the harness's
  * `ctx.fs` is a policy-fenced provider: a dynamic plugin calls `writeText` without a
@@ -7,7 +7,7 @@
  * (`workspace-write`, workspace root = `process.cwd()`) and denies writes under the
  * task's `run/` directory with `FS_SANDBOX_DENIED`. This module runs in the plugin's
  * HOST half, where real `node:fs` is available and no policy fences it, so the
- * `evolve.files` handle can persist machinery state (scores, reports, logs) under
+ * `evolve.files` handle can persist search state (scores, reports, logs) under
  * `run/` without a subprocess and without escaping the run directory.
  *
  * It is a storage primitive, not a memory or notes abstraction: it moves bytes and

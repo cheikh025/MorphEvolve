@@ -9,10 +9,10 @@ evolve-kit/
 ├── final_eval.py            final score of a finished ALE-Bench run (private evaluation)
 ├── private_eval.py          the ALE-Bench private evaluation that final_eval.py runs
 ├── dist/                    prebuilt plugin tarballs — setup.sh installs these
-│   ├── dsh-dirspawn-0.1.0.tgz
+│   ├── dsh-candidate-builder-0.1.0.tgz
 │   └── dsh-evolve-loop-0.1.0.tgz
 ├── plugins/                 plugin source, for changes and rebuilding the tarballs
-│   ├── dsh-dirspawn/        directory-confined workers (web tools blocked for workers)
+│   ├── dsh-candidate-builder/        directory-confined workers (web tools blocked for workers)
 │   └── dsh-evolve-loop/     the evolve service, evolve_run and evolve_status
 ├── presets/evolve/          the "Evolve Mode" preset: composition, persona, skills
 └── tasks/
@@ -141,7 +141,7 @@ In the DSH page, for each run:
 7. Give it the prompt in [`PROMPT.md`](PROMPT.md), which `setup.sh` also prints when it finishes:
 
 ```
-Improve the solution for the task in this folder by orchestrating and improving the search process. Fitness is the mean score over seeds 0 to 49, and the total budget is 100 candidates. Run evolve_run in small chunks rather than using the full budget at once. Between chunks, analyze the results and determine which part or mechanism of the search is limiting progress, stalling, underperforming, or could be made more effective. Update and improve that specific search mechanism, then run another small chunk and repeat this process. Make improvements whenever the search stalls or when the run data suggests that some part of the search machinery could be better. Do not focus on directly solving the task yourself; your role is to orchestrate, diagnose, and improve the search machinery so that the search can discover better solutions. Do not use the web, do not search for existing solutions, and do not give any subagent the option to use the web or search externally for solutions.
+Improve the solution for the task in this folder by orchestrating and improving the search process. Fitness is the mean score over seeds 0 to 49, and the total budget is 100 candidates. Run evolve_run in small chunks rather than using the full budget at once. Between chunks, analyze the results and determine which part or mechanism of the search is limiting progress, stalling, underperforming, or could be made more effective. Update and improve that specific search mechanism, then run another small chunk and repeat this process. Make improvements whenever the search stalls or when the run data suggests that some part of the search strategy could be better. Do not focus on directly solving the task yourself; your role is to orchestrate, diagnose, and improve the search strategy so that the search can discover better solutions. Do not use the web, do not search for existing solutions, and do not give any subagent the option to use the web or search externally for solutions.
 ```
 
 ### Step 9. (ALE-Bench tasks only) Get the final score
@@ -164,8 +164,8 @@ Run these after `setup.sh`. Each should give the expected result.
 | only the clone runs DSH | `which -a dsh` | nothing |
 | DSH version | `node -p "require('$DSH_REPO/apps/cli/package.json').version"` | `0.1.5-rc.2`, or another version — then the last two checks matter most |
 | sandbox | `bwrap --ro-bind / / true && echo ok` | `ok` |
-| plugins listed in the profile | `grep -A6 '"bundles"' "$DSH_HOME/profiles/web/package.json"` | includes `dsh-dirspawn` and `dsh-evolve-loop` |
-| workers cannot use the web | `grep -c web_search "$DSH_HOME/profiles/web/node_modules/dsh-dirspawn/lib/index.js"` | `1` |
+| plugins listed in the profile | `grep -A6 '"bundles"' "$DSH_HOME/profiles/web/package.json"` | includes `dsh-candidate-builder` and `dsh-evolve-loop` |
+| workers cannot use the web | `grep -c web_search "$DSH_HOME/profiles/web/node_modules/dsh-candidate-builder/lib/index.js"` | `1` |
 | status tool installed | `grep -c evolve_status "$DSH_HOME/profiles/web/node_modules/dsh-evolve-loop/src/index.js"` | `2` |
 | preset installed | `ls "$DSH_HOME/.agent-presets/evolve"` | `agent.cordis.yml  preset.yml  skills` |
 | evaluator environment | `"$DSH_HOME/benchmarks/venv/bin/python" --version` | Python 3.11 to 3.14 |
@@ -196,7 +196,7 @@ Run these after `setup.sh`. Each should give the expected result.
 ```bash
 cd "$DSH_REPO"
 pnpm dsh plugin --profile web remove dsh-evolve-loop
-pnpm dsh plugin --profile web remove dsh-dirspawn
+pnpm dsh plugin --profile web remove dsh-candidate-builder
 rm -rf "$DSH_HOME/.agent-presets/evolve"
 cd "$DSH_HOME/benchmarks/Frontier-CS/algorithmic" && docker compose down
 rm -rf "$DSH_HOME/benchmarks"

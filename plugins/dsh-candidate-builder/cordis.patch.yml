@@ -1,21 +1,21 @@
-# dsh-dirspawn: directory-confined subagents.
+# dsh-candidate-builder: directory-confined subagents.
 #
 # Two rows. The PROVIDER row must stay on the host plane — `ctx.subagents` is a
 # process registry and a provider name may be registered only once — so it
 # belongs in a profile layer and cannot move into an agent preset.
 #
 # The TOOL row is free. Left here it is global, so every preset in the profile
-# can call `dirspawn`. To give it to one preset only, delete the tool row from
+# can call `candidate-builder`. To give it to one preset only, delete the tool row from
 # this file's effect by copying it into that preset's `agent.cordis.yml`
 # instead; the provider row stays here either way.
 - insert:
-    - id: subagent-dirspawn
-      name: dsh-dirspawn
+    - id: subagent-candidate-builder
+      name: dsh-candidate-builder
       config:
-        providerName: dirspawn
+        providerName: candidate-builder
 
-    - id: tool-dirspawn
-      name: dsh-dirspawn/tool
+    - id: tool-candidate-builder
+      name: dsh-candidate-builder/tool
       config:
-        provider: dirspawn
-        toolName: dirspawn
+        provider: candidate-builder
+        toolName: candidate-builder

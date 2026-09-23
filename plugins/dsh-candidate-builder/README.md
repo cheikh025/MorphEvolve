@@ -1,6 +1,6 @@
-# dsh-dirspawn
+# dsh-candidate-builder
 
-Directory-confined subagents for the DeepSeek Harness. A `dirspawn` child is a
+Directory-confined subagents for the DeepSeek Harness. A `candidate-builder` child is a
 fresh in-process agent that can read and write **one directory** and nothing
 else.
 
@@ -17,7 +17,7 @@ Four layers, strongest first:
    nothing the child registers can overturn a denial.
 3. Shell tools (`pwsh`/`bash`) are removed by default and grantable per call.
    Delegation tools (`subagent`, `subagent_fork`, `workflow`, `ralph`,
-   `dirspawn` itself) and the `cordis_*` dynamic-plugin tools are **never**
+   `candidate-builder` itself) and the `cordis_*` dynamic-plugin tools are **never**
    grantable, so a child can neither spawn an unguarded grandchild nor define a
    plugin that reads the host filesystem. Skills stay available: the catalog is
    instruction knowledge, not a path grant.
@@ -35,9 +35,9 @@ the sandbox pin.
 ## Install
 
 ```sh
-dsh plugin --profile web add dsh-dirspawn                 # from npm
-dsh plugin --profile web add github:<owner>/dsh-dirspawn  # from git
-dsh plugin --profile web add ./dsh-dirspawn-0.1.0.tgz     # from a tarball
+dsh plugin --profile web add dsh-candidate-builder                 # from npm
+dsh plugin --profile web add github:<owner>/dsh-candidate-builder  # from git
+dsh plugin --profile web add ./dsh-candidate-builder-0.1.0.tgz     # from a tarball
 ```
 
 Then restart the harness. No install script runs: the package ships prebuilt
@@ -51,25 +51,25 @@ The **provider** row registers on `ctx.subagents`, which is a process registry
 where a provider name may be registered only once. It has to stay on the host
 plane — a profile layer — and cannot move into an agent preset.
 
-The **tool** row is free. Left in the profile, `dirspawn` is a global tool every
+The **tool** row is free. Left in the profile, `candidate-builder` is a global tool every
 preset can call. To give it to one preset only, copy that row into the preset's
 `agent.cordis.yml` instead:
 
 ```yaml
-- id: tool-dirspawn
-  name: dsh-dirspawn/tool
+- id: tool-candidate-builder
+  name: dsh-candidate-builder/tool
   config:
-    provider: dirspawn
-    toolName: dirspawn
+    provider: candidate-builder
+    toolName: candidate-builder
 ```
 
 ## Configuration
 
 | row | field | default | description |
 | --- | --- | --- | --- |
-| `dsh-dirspawn` | `providerName` | `dirspawn` | provider name on `ctx.subagents` |
-| `dsh-dirspawn/tool` | `provider` | `dirspawn` | provider to start runs on |
-| `dsh-dirspawn/tool` | `toolName` | `dirspawn` | model-facing tool name |
+| `dsh-candidate-builder` | `providerName` | `candidate-builder` | provider name on `ctx.subagents` |
+| `dsh-candidate-builder/tool` | `provider` | `candidate-builder` | provider to start runs on |
+| `dsh-candidate-builder/tool` | `toolName` | `candidate-builder` | model-facing tool name |
 
 ## Tool arguments
 

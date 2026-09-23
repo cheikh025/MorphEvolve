@@ -1,11 +1,11 @@
 /**
- * Case-normalized path containment for the dirspawn confinement guard.
+ * Case-normalized path containment for the candidate-builder confinement guard.
  *
  * Windows/UNC keys are fully lowercased (NTFS is case-insensitive); POSIX keys
  * keep their case. The functions are pure string logic and safe to run on any
  * platform, including inside the sandbox realms where Node path APIs are
  * unavailable.
- * @module dsh-dirspawn/path
+ * @module dsh-candidate-builder/path
  */
 
 /**

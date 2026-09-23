@@ -31,7 +31,7 @@ async function rows(): Promise<any[]> {
 
 function subagentsService() {
   return {
-    getProvider: (name: string) => (hasProvider && name === 'dirspawn' ? { name } : undefined),
+    getProvider: (name: string) => (hasProvider && name === 'candidate-builder' ? { name } : undefined),
     async start(_name: string, request: any) {
       const order: string[] = []
       starts.push({ request, order })
@@ -212,10 +212,10 @@ describe('dsh-evolve-loop', () => {
     expect(() => evolve.currentRun()).toThrow('no evolve run is in progress')
   })
 
-  it('fails loud when missing dirspawn subagent provider', async () => {
+  it('fails loud when missing candidate-builder subagent provider', async () => {
     hasProvider = false
     await expect(runTool({ max_budget: 2 }))
-      .rejects.toThrow('evolve needs the "dirspawn" subagent provider')
+      .rejects.toThrow('evolve needs the "candidate-builder" subagent provider')
   })
 
   it('refuses concurrent runs', async () => {

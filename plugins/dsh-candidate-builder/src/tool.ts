@@ -1,6 +1,6 @@
 /**
- * Model-facing `dirspawn` tool: runs a one-shot subagent hard-confined to ONE
- * directory through the `dirspawn` provider on `ctx.subagents`. Foreground by
+ * Model-facing `candidate-builder` tool: runs a one-shot subagent hard-confined to ONE
+ * directory through the `candidate-builder` provider on `ctx.subagents`. Foreground by
  * default: the call waits for the child to finish and returns its final text.
  * `run_in_background: true` starts the same run through the jobs service and
  * returns a job id immediately (collect with `job_output`, stop with
@@ -9,7 +9,7 @@
  * The confinement payload (`root` + `allowShell` + optional `allowedTools`)
  * rides the start request as an extra `confine` field, which the subagents
  * service preserves verbatim.
- * @module dsh-dirspawn/tool
+ * @module dsh-candidate-builder/tool
  */
 
 import type { Context } from '@deepseek-ai/cordis'
@@ -20,25 +20,25 @@ import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { settleRun } from '@deepseek-ai/dsh-subagent'
 import type { SubagentResult, SubagentRun, SubagentStartRequest } from '@deepseek-ai/dsh-subagent'
 
-export const name = 'tool-dirspawn'
+export const name = 'tool-candidate-builder'
 
 export const inject = ['tools', 'subagents']
 
 /** Config: which registered provider this tool delegates to. */
 export interface Config {
-  /** The `ctx.subagents` provider name to start runs on (default `dirspawn`). */
+  /** The `ctx.subagents` provider name to start runs on (default `candidate-builder`). */
   provider: string
-  /** Model-facing tool name (default `dirspawn`). */
+  /** Model-facing tool name (default `candidate-builder`). */
   toolName?: string
 }
 
 export const Config: z<Config> = z.object({
-  provider: z.string().default('dirspawn'),
-  toolName: z.string().default('dirspawn'),
+  provider: z.string().default('candidate-builder'),
+  toolName: z.string().default('candidate-builder'),
 })
 
 /** The confinement payload the companion provider reads from the start request. */
-interface DirspawnToolStartRequest extends SubagentStartRequest {
+interface CandidateBuilderToolStartRequest extends SubagentStartRequest {
   readonly confine: {
     /** Absolute directory the child may read and write. */
     readonly root: string
@@ -57,7 +57,7 @@ interface FileSystemLike {
 }
 
 /** The tool's canonical result value. */
-interface DirspawnResult {
+interface CandidateBuilderResult {
   runId: string
   directory: string
   stopReason: string
@@ -80,15 +80,15 @@ function stopReasonError(result: SubagentResult): string | undefined {
     case 'completed':
       return undefined
     case 'aborted':
-      return 'dirspawn run was cancelled'
+      return 'candidate-builder run was cancelled'
     case 'error':
-      return 'dirspawn run failed'
+      return 'candidate-builder run failed'
     case 'max-tokens':
-      return 'dirspawn run hit its token limit before finishing'
+      return 'candidate-builder run hit its token limit before finishing'
     case 'refusal':
-      return 'dirspawn declined the task'
+      return 'candidate-builder declined the task'
     default:
-      return `dirspawn run ended abnormally (${String(result.stopReason)})`
+      return `candidate-builder run ended abnormally (${String(result.stopReason)})`
   }
 }
 
@@ -111,12 +111,12 @@ function withDiagnosticAndPartialText(error: string, result: SubagentResult): st
  * @param root - the confined directory, echoed in the result.
  * @returns the tool's canonical result value.
  */
-async function settleForegroundRun(run: SubagentRun, root: string): Promise<DirspawnResult> {
+async function settleForegroundRun(run: SubagentRun, root: string): Promise<CandidateBuilderResult> {
   const [execution] = await Promise.allSettled([run.result])
   const [disposal] = await Promise.allSettled([Promise.resolve().then(() => run.dispose())])
   if (execution.status === 'rejected') {
     if (disposal.status === 'rejected') {
-      throw new AggregateError([execution.reason, disposal.reason], 'dirspawn run and dispose both failed')
+      throw new AggregateError([execution.reason, disposal.reason], 'candidate-builder run and dispose both failed')
     }
     throw execution.reason
   }
@@ -161,7 +161,7 @@ async function settleBackgroundStart(start: Promise<SubagentRun>, signal: AbortS
 }
 
 export function apply(ctx: Context, config: Config): void {
-  const toolName = config.toolName ?? 'dirspawn'
+  const toolName = config.toolName ?? 'candidate-builder'
   ctx.tools.register(defineTool({
     name: toolName,
     description: 'Run a one-shot subagent that is hard-confined to ONE directory: the child cannot read or write anything outside it. '
@@ -169,7 +169,7 @@ export function apply(ctx: Context, config: Config): void {
       + 'writes are additionally sandbox-contained to it, and escalation to full access is impossible (approval is pinned off in '
       + 'the child). The skill tool is available by default (its instruction catalog lives outside the confined directory; skill '
       + 'content is knowledge, not a path grant). Shell tools (pwsh/bash) are off by default; delegation tools '
-      + '(subagent/workflow/ralph/dirspawn), the dynamic-plugin tools, and the web tools (web_search/web_fetch) are NEVER grantable. allowed_tools re-enables pwsh/bash '
+      + '(subagent/workflow/ralph/candidate-builder), the dynamic-plugin tools, and the web tools (web_search/web_fetch) are NEVER grantable. allowed_tools re-enables pwsh/bash '
       + 'per child (workdir stays confined; arbitrary shell commands can still READ outside paths). The optional persona and '
       + 'model parameters customize the child per call: persona shadows the default persona, model overrides the model id while '
       + 'the provider is inherited from the parent route. The call runs in the foreground by default: it waits for the child to '
@@ -230,7 +230,7 @@ export function apply(ctx: Context, config: Config): void {
       },
       render: (_args, value) => {
         if (typeof value.jobId === 'string') {
-          return [{ type: 'text', text: `Started background dirspawn run in "${value.directory}" (job id: ${value.jobId}). Collect the result with job_output; stop it with job_kill.` }]
+          return [{ type: 'text', text: `Started background candidate-builder run in "${value.directory}" (job id: ${value.jobId}). Collect the result with job_output; stop it with job_kill.` }]
         }
         return [{ type: 'text', text: outputValueText(value.output ?? []) || `(no text output; stopReason: ${value.stopReason})` }]
       },
@@ -240,9 +240,9 @@ export function apply(ctx: Context, config: Config): void {
     async execute(args, exec) {
       const { directory, prompt, description, allow_shell: allowShellArg, max_depth: maxDepthArg, allowed_tools: allowedToolsArg, persona: personaArg, model: modelArg, run_in_background: runInBackgroundArg } = args
       const parent = exec.agent
-      if (parent === undefined) throw new Error('dirspawn requires a calling agent')
+      if (parent === undefined) throw new Error('candidate-builder requires a calling agent')
       const fs = parent.ctx.get('fs') as FileSystemLike | undefined
-      if (fs === undefined) throw new Error('dirspawn requires the fs service on the parent context')
+      if (fs === undefined) throw new Error('candidate-builder requires the fs service on the parent context')
 
       const parentCwd = parent.session.header.cwd
       const target = await fs.resolve(directory, parentCwd === undefined
@@ -263,7 +263,7 @@ export function apply(ctx: Context, config: Config): void {
         : []
       const persona = typeof personaArg === 'string' && personaArg.length > 0 ? personaArg : undefined
       const model = typeof modelArg === 'string' && modelArg.length > 0 ? modelArg : undefined
-      const request: DirspawnToolStartRequest = {
+      const request: CandidateBuilderToolStartRequest = {
         prompt: [{ type: 'text', text: prompt }],
         parent,
         signal: exec.signal,
@@ -279,13 +279,13 @@ export function apply(ctx: Context, config: Config): void {
         if (jobs === undefined) throw new Error('background jobs unavailable: load @deepseek-ai/dsh-jobs and @deepseek-ai/dsh-tool-jobs')
         const jobId = jobs.start({
           kind: 'subagent',
-          label: typeof description === 'string' && description.length > 0 ? description : 'dirspawn',
+          label: typeof description === 'string' && description.length > 0 ? description : 'candidate-builder',
           owner: parent,
           run: () => {
             const controller = new AbortController()
             const start = ctx.subagents.start(config.provider, { ...request, signal: controller.signal })
             return {
-              cancel: (reason?: string) => { controller.abort(reason ?? 'background dirspawn task killed') },
+              cancel: (reason?: string) => { controller.abort(reason ?? 'background candidate-builder task killed') },
               done: settleBackgroundStart(start, controller.signal),
             }
           },

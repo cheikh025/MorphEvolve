@@ -8,13 +8,11 @@ description: Use at the start of an EVOLVE run, and whenever you need the shape 
 You are running EVOLVE: a search for the best solution to one task.
 **You do not solve the task. You run the search that solves it.**
 
+You inspect results and improve how the search selects, produces, and keeps candidates. Workers design and write each candidate.
+
 **Do not design, write, or prototype the solution yourself — not even to hand it to a worker.**
 
-**A direction tells a worker where to look, never how to build.** Good directions come from the search: explore something unlike this parent; combine what worked in two candidates; fix the failures a parent's evaluation reports; refine a parent's approach; try a family of method no candidate has used yet. Bad directions come from you solving the problem: algorithm skeletons, moves, data structures, parameters, expected scores.
-
-A quick test: could you have written this direction without knowing how to solve the problem? If not, cut it back.
-
-In the first round there is no evidence yet. Leave the direction open, or ask for deliberately different kinds of approach without saying how.
+## Initial search policy
 
 This skill defines the initial search policy and the invariants that keep the search valid. Start here before the first `evolve_run` call.
 
@@ -41,8 +39,8 @@ Each task is one directory holding the whole problem: the statement, the baselin
 ├── evaluator/         the fixed evaluator: evaluator.py defines evaluate(program_path)
 └── run/               created by evolve_run
     ├── candidates/
-    │   ├── c000000/   the baseline: the statement and the solution file
-    │   ├── c000001/   a full copy of its parent
+    │   ├── c000000/   baseline copy of task files (with exclusions below)
+    │   ├── c000001/   copy of its selected parent candidate directory
     │   └── ...
     ├── evals/         the evaluator's full result for each candidate
     ├── population.jsonl
@@ -60,7 +58,7 @@ task-provided files = fixed
 run/                = created and writable by EVOLVE
 ```
 
-EVOLVE may change its candidates and its own search machinery inside `run/`, but it must never alter the problem it is being evaluated against.
+EVOLVE may change its candidates and its own search state inside `run/`, but it must never alter the problem it is being evaluated against.
 
 ## Run the search with `evolve_run`
 
@@ -77,47 +75,61 @@ The first call writes `max_budget` into `run/budget.json`, and every later call 
 
 ### The first call
 
-When `run/population.jsonl` has no rows, `evolve_run` first creates the baseline: it copies the task root into `run/candidates/c000000/` — everything except `run/`, `evaluator/`, `task.json` and `__pycache__`, so the statement and the solution file — evaluates it, and records it. The baseline does not consume candidate budget.
+When `run/population.jsonl` has no rows, `evolve_run` first creates the baseline: it copies the task root into `run/candidates/c000000/` — everything except `run/`, `evaluator/`, `task.json` and `__pycache__`, including the statement and solution file — evaluates it, and records it. The baseline does not consume candidate budget.
 
 ### Each pass
 
-- **select** — picks a parent from the alive candidates. The default chooses in proportion to fitness.
-- **mutate** — creates the next candidate as a full copy of that parent, spending one budget unit, then starts one worker confined to that candidate's own directory to improve it. The default worker is told the parent's score and writes one complete solution between the markers; it has no shell, so it cannot run the code or compare variants — scoring is the loop's evaluate step.
-- **evaluate** — scores the candidate with the task's evaluator: `evaluate()` from `<task>/evaluator/evaluator.py`, called on a copy of the candidate's solution file without the marker lines. The evaluator chooses its own instances or test cases, and the fitness is its `combined_score`. A call that runs past `timeout` (from `task.json`) scores 0; a call that raises is retried up to `max_retries` times, then scores 0. The evaluator's full result — its metrics, and the error when a candidate failed — is saved in `run/evals/<id>.json`.
-- **record** — appends one row to `run/population.jsonl`: `{"id", "parent", "fitness", "survival": "yes"}`.
-- **survive** — once the number of alive candidates reaches `max_population`, keeps the top `k` and marks the rest `"survival": "no"`. Culled candidates keep their directories and their rows.
+- **select** : picks a parent from the alive candidates. The default weights them by merit calculated from fitness.
+- **mutate** : creates the next candidate as a full copy of that parent, spending one budget unit, then starts one worker confined to that candidate's own directory to improve it. The default worker is told the parent's score and writes one complete solution between the markers. The loop then evaluates that candidate.
+- **evaluate** : scores the candidate with the task's evaluator: `evaluate()` from `<task>/evaluator/evaluator.py`, called on a copy of the candidate's solution file without the marker lines. The evaluator defines what it measures. The runner uses `combined_score` when available, or the mean of numeric metrics otherwise. A call that runs past `timeout` (from `task.json`) scores 0; a call that raises is retried up to `max_retries` times, then scores 0. The evaluator's full result — its metrics, and the error when a candidate failed — is saved in `run/evals/<id>.json`.
+- **record** : appends one row to `run/population.jsonl`: `{"id", "parent", "fitness", "survival": "yes"}`.
+- **survive** : once the number of alive candidates reaches `max_population`, keeps the top `k` and marks the rest `"survival": "no"`. Culled candidates keep their directories and their rows.
 
-A worker that fails leaves its candidate unchanged; the candidate is still evaluated and recorded, and its budget unit stays spent. That is an ordinary outcome, and so is a candidate that does not compile, crashes, runs out of time or gives an invalid answer: it scores 0, and `run/evals/<id>.json` says why. An evaluator that cannot run at all is different: when it cannot even be loaded, it stops the call with the error, and it is something to investigate, not a bad candidate. Scores of 0 whose error is about Docker or the judge rather than the candidate are the same kind of problem.
+A worker error does not refund its allocated candidate and may leave partial edits. If the run continues, the loop evaluates and records whatever files remain. Candidate code may fail to run, time out, or produce invalid output; inspect its saved evaluation metrics for feedback when available. If the evaluator cannot load, the call stops. If evaluation infrastructure fails, investigate that failure before treating the resulting score as evidence about the candidate.
 
-The default steps treat higher fitness as better, except that a fitness of 0 is a failed evaluation and always ranks last. On minimize tasks the evaluator makes every score negative, so there too higher (closer to 0) is better; selection weighs those candidates by 1/|fitness|.
+The default steps rank candidates by merit: positive fitness uses its value, negative fitness uses `1/|fitness|`, and zero ranks last as a failed evaluation.
 
 ### Run in chunks
 
-Pass `candidates` so that each call creates a few candidates and returns. Between calls, read `run/population.jsonl`: which parents are producing improvements, whether the best fitness is still moving, whether the alive candidates have collapsed into one line of descent (follow `parent`). Then call `evolve_run` again with the same `max_budget`; the run continues where it stopped, and the baseline is not redone.
+Pass `candidates` to limit each `evolve_run` call to a small number of new candidates. After it returns, read the new rows in `run/population.jsonl` and their `run/evals/<id>.json` results. Compare children with their parents: which lineages improve, which failures recur, and whether the alive population is losing diversity. One weak candidate is not enough to diagnose a search problem.
 
-The chunks are where you notice whether the search is still producing. Changes to the search machinery also happen between calls: the next call uses whatever is registered at that moment.
+If the search is producing useful candidates, run another chunk. When the results reveal a recurring weakness or an opportunity to improve the strategy, load `improving-the-search-strategy` to diagnose and choose a change. Use the next chunk to check whether the change helped. Pass the same `max_budget` each time; the run resumes from its recorded population, and a recorded baseline is not reevaluated.
 
-Interrupting the call stops the run. A candidate that was being worked on at that moment may be left allocated but not recorded; its budget unit stays spent. Only one run can execute at a time.
+An interrupted call may leave a candidate allocated but not recorded; its budget unit is still spent. Only one `evolve_run` call can execute at a time.
 
 ## Directing workers
 
-The default mutate writes its own worker prompt. To give workers a direction, or to change their instructions, persona, model, or tools, register your own `mutate` provider — `improving-the-search-machinery` explains how. When you write that prompt, these rules hold.
+The default `mutate` provider gives a worker one copied candidate and its parent's fitness, with a general instruction to improve it. A tailored direction is optional. When results across candidates show a specific weakness or opportunity, you can register a `mutate` provider that gives workers more focused instructions; `improving-the-search-strategy` explains how.
 
-The directory the worker is confined to is its entire world: it can write there and nowhere else. **Always confine it to the candidate's own directory, at least initially.** Confining it to the run root instead hands the worker every sibling candidate, the population file and the budget, which defeats the isolation the confinement exists to provide.
+### Choosing a worker direction
 
-A worker starts with no history of this conversation and no memory of previous workers. Everything it needs comes from the prompt you write and from the files inside its candidate directory. The worker reads the problem from `statement.md` in its own directory, so do not restate it. Tell it what fitness means for this run, the rules it must keep, its direction, and any other useful instructions about how to work — never how to solve. Ask it to end with a short report in its final reply: what it tried, what it measured, and what it would try next. That report is how you learn what works without solving the problem yourself — but the default mutate discards it, so a mutate that wants reports must keep them, for example as a file under `run/`.
+A direction tells the worker what to investigate or improve. The worker chooses the approach and writes the code. These are examples, not a menu:
 
-A candidate holds only the statement and the solution file. The evaluator stays at the task root, out of the worker's reach, so a worker cannot score its own work; scoring is the loop's evaluate step.
+- **Explore:** Look beyond the kinds of approaches tried so far.
+- **Exploit:** Refine a strength shown by a promising parent.
+- **Repair:** Address a failure reported by the parent's evaluation.
+- **Generalize:** Improve weak cases while preserving strong ones.
+- **Balance:** Seek a better trade-off when a gain in one metric hurts another.
+- **Rethink:** Question a parent's approach when several descendants have stalled.
+- **Salvage a failure:** Pursue the promising part of an unsuccessful candidate while addressing what made it fail.
 
-**Only the regions between `#EVOLVE_START` and `#EVOLVE_END` may change.** Everything else in a candidate — including its copy of the statement — is fixed scaffolding. Nothing enforces this, so say it in the worker's prompt, and check candidates when their scores look implausible.
+Choose or invent a direction from this run's evidence. You may name task constraints, observed behavior, and evaluation results. Do not supply solution code or prescribe the algorithm, steps, techniques, data structures, or parameter values. Before the first run, when there is no search history, leave the direction open or ask for different approaches without saying how.
+
+### Giving the worker context
+
+A worker has no memory of this conversation. Its candidate directory gives it the task and parent solution; provide any other context this attempt needs deliberately. That might include evaluation failures, the parent’s score, lessons from its lineage, or findings from the wider run. You may carry those findings forward through prompts, saved worker replies, notes, structured records, or another form of memory. Keep only what helps future attempts, and decide which workers should receive it.
+
+### Keeping attempts valid
+
+Keep each worker's writable workspace inside its allocated candidate directory. Only the solution region between `#EVOLVE_START` and `#EVOLVE_END` may change; the statement and other copied task files remain fixed. The task evaluator and `task.json` stay outside the candidate directory. Local checks, if you enable them, are development feedback; the loop's evaluator supplies official fitness.
+
+One allocated candidate is one complete solution attempt. A worker may reason about alternatives, but must not produce or test several complete solutions inside one candidate directory and submit only the best. Trying another complete solution requires another allocated candidate and spends another budget unit. The current budget counter tracks allocated candidate directories, so a custom `mutate` provider must preserve this rule.
 
 ## Official scores come from the task's evaluator
 
 The default evaluate already follows these rules. They also bind any evaluation you run yourself, and any evaluator you register in its place.
 
-A candidate's **official fitness** is the score the task's evaluator gives it, run the way the default evaluate runs it: `evaluate()` from `<task>/evaluator/evaluator.py`, on the candidate's solution file without the marker lines, with the timeout and retries in `task.json`. The evaluator decides which instances or test cases it uses. Other measurements — other cases, partial runs, proxies — may guide the search, but they must not be recorded as a candidate's official fitness.
-
-On ALE-Bench tasks, the benchmark's final result is a private evaluation on hidden test cases. It is run after the search, outside the task: it is not in the task folder and plays no part in the search.
+A candidate's **official fitness** is the score the task's evaluator gives it, run the way the default evaluate runs it: `evaluate()` from `<task>/evaluator/evaluator.py`, on the candidate's solution file without the marker lines, with the timeout and retries in `task.json`. The evaluator controls what it measures. Other measurements — other cases, partial runs, proxies — may guide the search, but they must not be recorded as a candidate's official fitness.
 
 If the evaluator itself fails rather than returning a valid evaluation result, treat it as an evaluation failure to investigate, not automatically as a bad candidate.
 
@@ -129,8 +141,5 @@ Recording happens inside the loop, after evaluation. A recorded candidate is fin
 
 `evolve_run` returns `best_id`, `best_fitness` and `remaining`. `best_fitness` is the highest fitness recorded in the run so far. The run ends when `remaining` reaches 0: no further candidate can be created.
 
-Then report to the user: the best candidate's id, its official score (its recorded fitness), and where its directory is (`<task>/run/candidates/<id>`). On an ALE-Bench task, the benchmark's final result is the private evaluation of that candidate on hidden test cases, which is run after the session — not by you.
+Then report to the user: the best candidate's id, its official score (its recorded fitness), and where its directory is (`<task>/run/candidates/<id>`).
 
-## Changing the search itself
-
-As you run candidates, watch the behavior of the search. If several candidates show that the search is stagnating, repeatedly making unproductive attempts, collapsing into the same kinds of solutions, or you observe some other evidence that the current search mechanism is limiting progress, load `improving-the-search-machinery` skill and use it to reconsider the search.

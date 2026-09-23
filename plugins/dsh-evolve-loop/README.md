@@ -8,7 +8,7 @@ The search is decomposed into modular Service Providers coordinated by the `evol
 
 1. **`evolve-loop` (`loop`)**: Coordinates iteration cycles, baseline handling, budget consumption, and termination.
 2. **`select`**: Selects parent candidate(s) from alive population (default: fitness-proportional roulette wheel).
-3. **`mutate`**: Manages candidate generation, directory allocation, and worker subagent variation (default: `dirspawn` subagent).
+3. **`mutate`**: Manages candidate generation and directory allocation. Its default provider, `candidate-builder`, uses the confined subagent supplied by `dsh-candidate-builder`.
 4. **`evaluate`**: Scores a candidate with the task's evaluator, `evaluate(program_path)` in `<task>/evaluator/evaluator.py`, following SkyDiscover's evaluator: the task's timeout and retries from `<task>/task.json`, fitness from `combined_score`. The full result is kept in `run/evals/<id>.json` (default: `src/providers/run_evaluator.py` in a `python` subprocess).
 5. **`survive`**: Population capacity management and culling (default: top-k retention, default k=5).
 
@@ -19,7 +19,7 @@ Instead of a monolithic disk store, on-disk state is partitioned strictly by dom
 - **`src/population.js`**: Owns `population.jsonl`. Reads records, handles parent lineage, performs atomic crash-safe rewrites during culling, and tracks alive candidates.
 - **`src/budget.js`**: Owns `budget.json`. Pins run budgets, counts spent attempts from candidate folders, and tracks remaining units.
 - **`src/candidates.js`**: Owns candidate workspaces (`candidates/c000000`, `candidates/c000001`). Copies the task baseline, allocates child directories, and manages path resolution.
-- **`src/files.js`**: Owns raw file I/O for machinery state under the run directory. `evolve.files` exposes `resolve`, `write` (atomic), `append`, `read`, `list`, `exists` and `remove` on paths confined to `run/`. Dynamic (sandboxed) provider code must use it instead of `node:fs` (absent in the sandbox) or `ctx.fs` (policy-fenced without a caller session, so writes under `run/` fail with `FS_SANDBOX_DENIED`); this module runs in the plugin's host half, which has neither restriction.
+- **`src/files.js`**: Owns raw file I/O for search state under the run directory. `evolve.files` exposes `resolve`, `write` (atomic), `append`, `read`, `list`, `exists` and `remove` on paths confined to `run/`. Dynamic (sandboxed) provider code must use it instead of `node:fs` (absent in the sandbox) or `ctx.fs` (policy-fenced without a caller session, so writes under `run/` fail with `FS_SANDBOX_DENIED`); this module runs in the plugin's host half, which has neither restriction.
 
 ## Inspecting and Swapping Providers at Runtime
 
@@ -30,7 +30,7 @@ const providers = ctx.evolve.listProviders()
 // {
 //   loop: "evolve-loop",
 //   select: "fitness-proportional",
-//   mutate: "dirspawn-worker",
+//   mutate: "candidate-builder",
 //   evaluate: "python-subprocess",
 //   survive: "top-k"
 // }

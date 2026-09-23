@@ -1,5 +1,5 @@
 {
-  "name": "dsh-dirspawn",
+  "name": "dsh-candidate-builder",
   "version": "0.1.0",
   "description": "Directory-confined subagents for the DeepSeek Harness: a child agent whose reads and writes are hard-limited to one directory.",
   "keywords": [

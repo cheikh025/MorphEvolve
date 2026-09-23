@@ -2,7 +2,7 @@
 # Install the Evolve kit into a DeepSeek Harness home, using a DSH source clone:
 #   - checks the prerequisites (node, pnpm, git, python 3.11-3.14, bwrap, docker)
 #   - clones, pins and builds the DSH clone when it is missing or on another version
-#   - installs the dsh-dirspawn and dsh-evolve-loop plugins, from dist/, into a profile
+#   - installs the dsh-candidate-builder and dsh-evolve-loop plugins, from dist/, into a profile
 #   - installs the Evolve preset, from presets/evolve, into $DSH_HOME/.agent-presets/evolve
 #   - installs what the benchmark evaluators (tasks/*/*/evaluator) need, under $BENCH_HOME:
 #     pinned clones of Frontier-CS and ALE-Bench, a Python environment with the evaluator
@@ -20,9 +20,9 @@ DSH_REPO="${DSH_REPO:-$HOME/deepseek-harness}"
 DSH_HOME="${DSH_HOME:-$HOME/.dsh}"
 PROFILE="${PROFILE:-web}"
 PROFILE_DIR="$DSH_HOME/profiles/$PROFILE"
-PLUGINS=(dsh-dirspawn dsh-evolve-loop)
+PLUGINS=(dsh-candidate-builder dsh-evolve-loop)
 # The harness version the plugins and the preset were built and tested against,
-# and the tag that carries it. dsh-dirspawn uses the 0.1.5 agent factory
+# and the tag that carries it. dsh-candidate-builder uses the 0.1.5 agent factory
 # (setup(childCtx, child) and parentAgent) and the preset's persona row uses the
 # 0.1.5 prefix/suffix form, so an older clone does not run this kit.
 BUILT_AGAINST="0.1.5-rc.2"
@@ -164,6 +164,14 @@ fi
 echo "-- DSH $version at $DSH_REPO, installed and built"
 
 echo "== 3/7 plugins -> profile '$PROFILE' ($PROFILE_DIR)"
+# Remove the previous package name when upgrading an existing profile.
+if [ -f "$PROFILE_DIR/package.json" ] && node -e '
+    const manifest = require(process.argv[1])
+    process.exit(manifest.dependencies?.[process.argv[2]] ? 0 : 1)
+  ' "$PROFILE_DIR/package.json" "dsh-dirspawn"; then
+  echo "-- removing the previous candidate builder package"
+  dsh_clone plugin --profile "$PROFILE" remove dsh-dirspawn
+fi
 for pkg in "${PLUGINS[@]}"; do
   tgz="$KIT/dist/$pkg-0.1.0.tgz"
   if [ -f "$PROFILE_DIR/package.json" ] && node -e '
@@ -231,15 +239,19 @@ for _ in $(seq 1 60); do judge_up && break; sleep 2; done
 judge_up || fail "the Frontier-CS judge is not answering at $FRONTIER_CS_JUDGE/problems. See: cd $FRONTIER_CS_DIR/algorithmic && docker compose logs"
 
 echo "== 7/7 verify"
-grep -q "web_search" "$PROFILE_DIR/node_modules/dsh-dirspawn/lib/index.js" \
-  || fail "dsh-dirspawn is not the kit version (no web restriction found)"
+grep -q "web_search" "$PROFILE_DIR/node_modules/dsh-candidate-builder/lib/index.js" \
+  || fail "dsh-candidate-builder is not the kit version (no web restriction found)"
+grep -q "candidate-builder" "$PROFILE_DIR/node_modules/dsh-candidate-builder/lib/index.js" \
+  || fail "dsh-candidate-builder is not the kit version (provider name missing)"
 grep -q "evolve_status" "$PROFILE_DIR/node_modules/dsh-evolve-loop/src/index.js" \
   || fail "dsh-evolve-loop is not the kit version (no evolve_status found)"
 grep -q "get files()" "$PROFILE_DIR/node_modules/dsh-evolve-loop/src/evolve.js" \
   || fail "dsh-evolve-loop is not the kit version (no evolve.files rail found)"
+grep -q "candidate-builder" "$PROFILE_DIR/node_modules/dsh-evolve-loop/src/providers/mutate.js" \
+  || fail "dsh-evolve-loop is not the kit version (candidate-builder provider missing)"
 node -e '
   const bundles = require(process.argv[1]).dsh?.profile?.bundles ?? []
-  for (const name of ["dsh-dirspawn", "dsh-evolve-loop"]) {
+  for (const name of ["dsh-candidate-builder", "dsh-evolve-loop"]) {
     if (!bundles.includes(name)) { console.error(`setup: ${name} is not listed in the profile bundles`); process.exit(1) }
   }
 ' "$PROFILE_DIR/package.json"

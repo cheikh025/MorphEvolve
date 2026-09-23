@@ -1,5 +1,5 @@
 /**
- * In-process DIRSPAWN subagent backend: registers a {@link SubagentProvider} on
+ * In-process candidate builder subagent backend: registers a {@link SubagentProvider} on
  * `ctx.subagents` that runs each child as a fresh in-process child agent
  * hard-confined to ONE directory.
  *
@@ -13,7 +13,7 @@
  *    knowledge, never a path grant). Shell tools (pwsh/bash) are removed by
  *    default (visibility plus name denial) but grantable per child through the
  *    request's `allowedTools`. Delegation tools (subagent/workflow/ralph), the
- *    `dirspawn` tool itself, and the `cordis_*` dynamic-plugin tools are never
+ *    `candidate-builder` tool itself, and the `cordis_*` dynamic-plugin tools are never
  *    grantable, so the child cannot spawn unguarded grandchildren or define
  *    plugins that read the host filesystem.
  * 4. The child's approval policy is pinned to `never`, so sandbox escalation
@@ -23,7 +23,7 @@
  * spawn backend but with its own child driver: the built-in in-process driver
  * always stamps the PARENT's cwd, while this backend must stamp the confined
  * directory.
- * @module dsh-dirspawn
+ * @module dsh-candidate-builder
  */
 
 import type { Context } from '@deepseek-ai/cordis'
@@ -58,7 +58,7 @@ import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-agent-presets'
 import { normalizeAbs, resolveInside } from './path.ts'
 
-export const name = 'subagent-dirspawn'
+export const name = 'subagent-candidate-builder'
 
 // `tools` is deliberately not injected — the child factory already provides it
 // during setup, and adding it here would change this provider's apply timing.
@@ -66,21 +66,21 @@ export const inject = ['subagents']
 
 /** Config: the registry name to register the provider under. */
 export interface Config {
-  /** Provider name on `ctx.subagents` (default `dirspawn`). */
+  /** Provider name on `ctx.subagents` (default `candidate-builder`). */
   providerName: string
 }
 
 export const Config: z<Config> = z.object({
-  providerName: z.string().default('dirspawn'),
+  providerName: z.string().default('candidate-builder'),
 })
 
 /**
  * Confinement payload carried as an extra field on the start request. The
  * subagents service resolves `{ ...request, descriptor }`, so this field
  * reaches the provider verbatim; start children through the companion
- * `dsh-dirspawn/tool` row, which always supplies it.
+ * `dsh-candidate-builder/tool` row, which always supplies it.
  */
-export interface DirspawnConfine {
+export interface CandidateBuilderConfine {
   /** Absolute directory the child may read and write; everything else is denied. */
   readonly root: string
   /** Whether pwsh/bash stay enabled (workdir confined; arbitrary shell reads remain possible). */
@@ -89,9 +89,9 @@ export interface DirspawnConfine {
   readonly allowedTools?: readonly string[]
 }
 
-/** The start request a dirspawn child carries. */
-export interface DirspawnStartRequest extends ResolvedSubagentStartRequest {
-  readonly confine?: DirspawnConfine
+/** The start request a candidate-builder child carries. */
+export interface CandidateBuilderStartRequest extends ResolvedSubagentStartRequest {
+  readonly confine?: CandidateBuilderConfine
 }
 
 /**
@@ -104,7 +104,7 @@ export interface DirspawnStartRequest extends ResolvedSubagentStartRequest {
  * knowledge.
  */
 const DENY_TOOLS = [
-  'dirspawn',
+  'candidate-builder',
   'subagent', 'subagent_fork', 'workflow', 'ralph',
   'cordis_define', 'cordis_run', 'cordis_stop', 'cordis_undefine',
   'cordis_inspect_list', 'cordis_inspect_query', 'cordis_inspect_self',
@@ -126,7 +126,7 @@ const PATH_FIELDS: Readonly<Record<string, string>> = {
 
 /** Error used when cancellation wins before the child publication boundary. */
 function prePublicationAbort(): Error {
-  return new Error('dirspawn request was aborted before child publication')
+  return new Error('candidate-builder request was aborted before child publication')
 }
 
 /** Map a session turn outcome to the subagent seam's terminal vocabulary. */
@@ -257,7 +257,7 @@ function attachDescriptorAppend(childCtx: Context, descriptor: SubagentDescripto
 /**
  * Compose one confined child inside its unpublished creation window: the
  * parent's preset join and per-child composition (both shared with the
- * built-in spawn backend), then the dirspawn-only layers — the pinned policy,
+ * built-in spawn backend), then the candidate-builder-only layers — the pinned policy,
  * the confinement statement, the tool denial, and the path guard.
  * @param childCtx - the unpublished child's scoped context.
  * @param child - the unpublished child agent, as the agent factory passes it to setup.
@@ -270,7 +270,7 @@ function setupConfinement(
   child: Agent,
   parent: Agent,
   request: ResolvedSubagentStartRequest,
-  confine: DirspawnConfine,
+  confine: CandidateBuilderConfine,
 ): void {
   // The parent's preset join and the per-child persona/toolFilter, exactly as
   // the built-in spawn backend applies them.
@@ -284,7 +284,7 @@ function setupConfinement(
   const granted = new Set<string>(confine.allowedTools ?? [])
   const deny = [...DENY_TOOLS, ...DEFAULT_DENIED_GRANTABLE.filter((tool) => !(confine.allowShell || granted.has(tool)))]
   childCtx.systemPrompt.context({
-    name: 'dirspawn:confinement',
+    name: 'candidate-builder:confinement',
     order: childCtx.systemPrompt.getContextOrder('SUBAGENT_DELEGATION'),
     text: confinementStatement(confine.root, confine.allowShell, confine.allowedTools ?? []),
   })
@@ -297,12 +297,12 @@ function setupConfinement(
  * Create and publish the confined child: fresh session, no parent context,
  * `cwd` = the confined directory, guarded tools, fixed policy.
  * @param request - the trusted typed start request, including its required signal.
- * @param confine - the confinement payload supplied by the dirspawn tool.
+ * @param confine - the confinement payload supplied by the candidate-builder tool.
  * @returns a published holder-owned run.
  */
-async function startDirspawnRun(
+async function startCandidateBuilderRun(
   request: ResolvedSubagentStartRequest,
-  confine: DirspawnConfine,
+  confine: CandidateBuilderConfine,
 ): Promise<SubagentRun> {
   assertSubagentMaxDepth(request.maxDepth)
   if (request.signal.aborted) throw prePublicationAbort()
@@ -404,14 +404,14 @@ function readResult(
 }
 
 /**
- * The dirspawn provider. Supports every start-time capability the tool uses:
+ * The candidate-builder provider. Supports every start-time capability the tool uses:
  * `depthLimit` (it constructs the child, so it can enforce a recursion cap),
  * `agentOptions` (merged over the parent route), and `toolFilter`/`persona`
  * (scoped `restrict()` and a scoped shadowing persona section, applied in the
  * child's creation window). No `outputSchema`, and no `prepareContinuable`:
- * dirspawn children are one-shot by design.
+ * candidate-builder children are one-shot by design.
  */
-class DirspawnProvider implements SubagentProvider {
+class CandidateBuilderProvider implements SubagentProvider {
   readonly capabilities: SubagentCapabilities = {
     agentOptions: true,
     outputSchema: false,
@@ -419,20 +419,20 @@ class DirspawnProvider implements SubagentProvider {
     toolFilter: true,
     persona: true,
   }
-  // Context contract: a dirspawn child starts fresh — it never sees the parent conversation.
+  // Context contract: a candidate-builder child starts fresh — it never sees the parent conversation.
   readonly inheritsParentContext = false
 
   constructor(readonly name: string) {}
 
   start(request: ResolvedSubagentStartRequest): Promise<SubagentRun> {
-    const confine = (request as DirspawnStartRequest).confine
+    const confine = (request as CandidateBuilderStartRequest).confine
     if (confine === undefined) {
-      throw new Error('dirspawn: request is missing its confinement payload; start children through the dirspawn tool')
+      throw new Error('candidate-builder: request is missing its confinement payload; start children through the candidate-builder tool')
     }
-    return startDirspawnRun(request, confine)
+    return startCandidateBuilderRun(request, confine)
   }
 }
 
 export function apply(ctx: Context, config: Config): void {
-  ctx.subagents.registerProvider(new DirspawnProvider(config.providerName))
+  ctx.subagents.registerProvider(new CandidateBuilderProvider(config.providerName))
 }

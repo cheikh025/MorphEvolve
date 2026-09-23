@@ -28,7 +28,7 @@ async function bump(dir: string, by: number): Promise<void> {
 
 function subagentsService() {
   return {
-    getProvider: (name: string) => (hasProvider && name === 'dirspawn' ? { name } : undefined),
+    getProvider: (name: string) => (hasProvider && name === 'candidate-builder' ? { name } : undefined),
     async start(_name: string, request: any) {
       capturedStartRequests.push(request)
       await worker(request)
@@ -80,7 +80,7 @@ describe('provider swapping', () => {
     expect(list).toEqual({
       loop: 'evolve-loop',
       select: 'fitness-proportional',
-      mutate: 'dirspawn-worker',
+      mutate: 'candidate-builder',
       evaluate: 'python-subprocess',
       survive: 'top-k',
     })
@@ -94,30 +94,48 @@ describe('provider swapping', () => {
     expect(pers).not.toMatch(/test your change/i)
     expect(inst).toContain('#EVOLVE_START')
     expect(inst).toContain('#EVOLVE_END')
-    expect(inst).toContain('This solution achieved a score of 42.')
+    expect(inst).toContain("The parent candidate's official fitness was 42.")
 
     await runTool({ max_budget: 1 })
     expect(capturedStartRequests).toHaveLength(1)
     const req = capturedStartRequests[0]
     // Baseline c000000 scored 10 in fixture, so candidate c000001 gets score 10 feedback
-    expect(req.prompt[0].text).toContain('This solution achieved a score of 10.')
+    expect(req.prompt[0].text).toContain("The parent candidate's official fitness was 10.")
     expect(req.persona).toBe(pers)
+    expect(req.label).toBe('mutator')
   })
 
-  it('confines the worker to writing one solution, with no shell', async () => {
+  it('asks for one complete attempt and permits shell checks', async () => {
     const inst = defaultInstruction()
-    const pers = defaultPersona()
 
-    expect(inst).toContain('Write a single complete solution')
-    expect(inst).toContain('You cannot run the code or benchmarks here')
-    expect(pers).toContain('you cannot execute code here')
+    expect(inst).toContain('one complete solution attempt')
+    expect(inst).toContain('You may compile or run validity checks')
+    expect(inst).toContain('Understand how the current solution works')
 
     await runTool({ max_budget: 1 })
-    // The prompt says the worker cannot execute; the guard is what makes that true.
-    expect(capturedStartRequests[0].confine.allowShell).toBe(false)
+    // The default worker can compile or check the one candidate it is writing.
+    expect(capturedStartRequests[0].confine.allowShell).toBe(true)
   })
 
-  it('forwards all dirspawn parameters from mutate', async () => {
+  it('uses name as the worker label when supplied', async () => {
+    const mutateProvider = evolve.getProvider('mutate')
+    evolve.register('loop', {
+      name: 'named-worker-test-loop',
+      async run() {
+        const base = await evolve.copyTask()
+        return await mutateProvider.mutate({
+          parent: base.id,
+          name: 'explorer',
+          description: 'Legacy worker label',
+        }, evolve)
+      },
+    })
+
+    await runTool({ max_budget: 1 })
+    expect(capturedStartRequests[0].label).toBe('explorer')
+  })
+
+  it('forwards all candidate-builder parameters from mutate', async () => {
     const mutateProvider = evolve.getProvider('mutate')
     evolve.register('loop', {
       name: 'mutate-test-loop',

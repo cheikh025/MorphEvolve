@@ -14,7 +14,7 @@ const FIXTURE_ROOT = fileURLToPath(new URL('../.test-runs/', import.meta.url))
 const DEFAULT_STACKS = {
   loop: ['evolve-loop'],
   select: ['fitness-proportional'],
-  mutate: ['dirspawn-worker'],
+  mutate: ['candidate-builder'],
   evaluate: ['python-subprocess'],
   survive: ['top-k'],
 }
@@ -44,7 +44,7 @@ beforeEach(async () => {
   await ctx.plugin({
     name: 'test-subagents',
     apply: (scope: Context) => {
-      scope.provide('subagents', { getProvider: (name: string) => (name === 'dirspawn' ? { name } : undefined) })
+      scope.provide('subagents', { getProvider: (name: string) => (name === 'candidate-builder' ? { name } : undefined) })
     },
   })
   await ctx.plugin(plugin)
