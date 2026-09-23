@@ -141,7 +141,7 @@ Nothing checks these, so a provider you write must keep them:
 - **Official fitness still comes from the task's evaluator, run the way the default evaluate runs it,** whatever evaluate provider is active.
 - **Confine every worker to its candidate's own directory.** `spawnWorker` also accepts `options.confine`, which can override the directory; do not use it to widen what a worker can write.
 - **Only candidates created by `allocate` or `copyTask` may be recorded.** Recording normally happens inside the loop; a provider that writes rows through `population()` must keep this rule itself.
-- **The default select, survive and loop all treat higher fitness as better.**
+- **The default select, survive and loop all rank by `merit(fitness)` from `population.js`:** higher fitness is better, a fitness of 0 is a failed evaluation and ranks last, and a minimize task's negative scores count as 1/|fitness|.
 - **The default mutate discards the worker's final reply.** If the search should learn from worker reports, the mutate you write must keep them, for example as files under `run/`.
 
 ## Learn from the effect

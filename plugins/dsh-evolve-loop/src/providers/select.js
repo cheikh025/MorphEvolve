@@ -4,12 +4,9 @@
  * @module dsh-evolve-loop/providers/select
  */
 
-import { alive } from '../population.js'
+import { alive, merit } from '../population.js'
 
 export const name = 'fitness-proportional'
-
-// A minimize task's evaluator makes its scores negative (lower is better), so those weigh 1/|fitness|.
-const weight = fitness => (fitness > 0 ? fitness : fitness < 0 ? -1 / fitness : 0)
 
 /**
  * Select a parent candidate from the alive population.
@@ -24,11 +21,11 @@ export async function select(population, evolve) {
     throw new Error('the population has no alive candidate to select')
   }
 
-  const total = pool.reduce((sum, row) => sum + weight(row.fitness), 0)
+  const total = pool.reduce((sum, row) => sum + merit(row.fitness), 0)
   if (total > 0) {
     let ticket = Math.random() * total
     for (const row of pool) {
-      ticket -= weight(row.fitness)
+      ticket -= merit(row.fitness)
       if (ticket <= 0) return row.id
     }
     return pool[pool.length - 1].id

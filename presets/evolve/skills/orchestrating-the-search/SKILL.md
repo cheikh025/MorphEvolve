@@ -90,7 +90,7 @@ When `run/population.jsonl` has no rows, `evolve_run` first creates the baseline
 
 A worker that fails leaves its candidate unchanged; the candidate is still evaluated and recorded, and its budget unit stays spent. That is an ordinary outcome, and so is a candidate that does not compile, crashes, runs out of time or gives an invalid answer: it scores 0, and `run/evals/<id>.json` says why. An evaluator that cannot run at all is different: when it cannot even be loaded, it stops the call with the error, and it is something to investigate, not a bad candidate. Scores of 0 whose error is about Docker or the judge rather than the candidate are the same kind of problem.
 
-The default steps treat higher fitness as better.
+The default steps treat higher fitness as better, except that a fitness of 0 is a failed evaluation and always ranks last. On minimize tasks the evaluator makes every score negative, so there too higher (closer to 0) is better; selection weighs those candidates by 1/|fitness|.
 
 ### Run in chunks
 

@@ -113,6 +113,17 @@ describe('dsh-evolve-loop', () => {
     expect(evaluation).toEqual({ fitness: 15, metrics: { combined_score: 15 } })
   })
 
+  it('ranks a failed evaluation (0) last on a minimize task, whose scores are negative', async () => {
+    const scores: Record<string, number> = { c000000: -10, c000001: 0, c000002: -5, c000003: -20 }
+    evolve.register('evaluate', { name: 'minimize-scores', async evaluate({ id }: any) { return scores[id] } })
+
+    const result = await runTool({ max_budget: 3, max_population: 3, k: 2 })
+
+    // The failed c000001 is neither reported as best nor kept by a cull
+    expect(result).toEqual({ best_id: 'c000002', best_fitness: -5, remaining: 0 })
+    expect((await rows()).filter(r => r.survival === 'yes').map(r => r.id)).toEqual(['c000000', 'c000002'])
+  })
+
   it('stops the run when the task evaluator cannot be loaded', async () => {
     await writeFile(join(task, 'evaluator', 'evaluator.py'), 'import no_such_module\n', 'utf8')
     await expect(runTool({ max_budget: 1 }))

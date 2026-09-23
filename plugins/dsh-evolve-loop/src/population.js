@@ -66,6 +66,18 @@ export function alive(records) {
 }
 
 /**
+ * How good a fitness is, as a weight where bigger is better: the default select, survive and
+ * best all rank candidates by it. A fitness of 0 is a failed evaluation and counts as 0, below
+ * every real score. A minimize task's evaluator makes its scores negative (-5 beats -20), so
+ * those count as 1/|fitness|.
+ * @param {number} fitness
+ * @returns {number}
+ */
+export function merit(fitness) {
+  return fitness > 0 ? fitness : fitness < 0 ? -1 / fitness : 0
+}
+
+/**
  * Return a population handle exposing rows(), append(row), and write(rows).
  * @param {string} runDir
  * @returns {{ runDir: string, rows(): Promise<object[]>, append(row: object): Promise<void>, write(rows: object[]): Promise<void> }}

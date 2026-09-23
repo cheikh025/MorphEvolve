@@ -5,7 +5,7 @@
  * @module dsh-evolve-loop/providers/loop
  */
 
-import { alive } from '../population.js'
+import { alive, merit } from '../population.js'
 
 export const name = 'evolve-loop'
 
@@ -67,11 +67,11 @@ export async function run(args, evolve) {
     }
   }
 
-  // 3. Determine best candidate overall
+  // 3. Determine best candidate overall (by merit: a failed evaluation never wins)
   rows = await population.rows()
   let best = rows[0]
   for (const row of rows) {
-    if (best === undefined || row.fitness > best.fitness) {
+    if (best === undefined || merit(row.fitness) > merit(best.fitness)) {
       best = row
     }
   }
