@@ -159,6 +159,6 @@ echo "Ready. DSH $version at $DSH_REPO, plugins in profile '$PROFILE', preset in
 echo "Start DSH from the clone: cd $DSH_REPO && DSH_HOME=$DSH_HOME pnpm dsh web"
 echo "Then start a session with the \"Evolve Mode\" preset in a task folder."
 echo
-echo "The prompt to give that session ($KIT/PROMPT.md; change the task name to the folder you opened):"
+echo "The prompt to give that session ($KIT/PROMPT.md):"
 echo
 cat "$KIT/PROMPT.md"
