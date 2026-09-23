@@ -63,6 +63,11 @@ export class Evolve {
     this.#providers.set('survive', [surviveProvider])
   }
 
+  /** Whether an evolve run is executing right now. */
+  get running() {
+    return this.#current !== undefined
+  }
+
   currentRun() {
     if (this.#current === undefined) {
       throw new Error('no evolve run is in progress; this is only available while evolve.run is executing')

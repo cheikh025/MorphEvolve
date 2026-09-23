@@ -55,11 +55,11 @@ A change that bypasses these boundaries has not improved the search; it has inva
 
 Implement the change your diagnosis calls for. You may revise a provider, create a tool or skill, change how workers are used, or coordinate these parts in a different workflow. Inspect the behavior and interfaces of any runtime component before changing it.
 
-Use the available Cordis creator capabilities to inspect, define, activate, replace, or remove runtime components.
+Change the search at runtime with the evolve runtime tools: `evolve_define` records a dynamic plugin, `evolve_activate` starts it or switches it to a newer version, `evolve_deactivate` stops or removes it, and `evolve_plugins` lists what this session has defined. Read the exact runtime APIs with `cordis_inspect_list` and `cordis_inspect_query` before writing code.
 
-Load [cordis-plugin-development](../cordis-plugin-development/SKILL.md) when you need to create or modify Cordis plugins. Inspect its interfaces before writing code.
+Load the `cordis-plugin-development` skill when you need to know how Cordis plugins are written. Its bundle and Plugin Manager workflow is for persistent changes to the whole profile; a search change for this run goes through the evolve runtime tools instead.
 
-Load [editing-cordis-compositions](../editing-cordis-compositions/SKILL.md) when the strategy requires changing an agent preset or its `agent.cordis.yml` composition.
+Load the `editing-cordis-compositions` skill when the strategy requires changing an agent preset or a composition.
 
 ### The current `evolve` runtime interface
 
@@ -90,14 +90,14 @@ Before replacing anything, look at what is active: `evolve.listProviders()` retu
 
 ### Replacing a provider
 
-Register a provider from a dynamic plugin, inside `ctx.effect`, so that stopping the plugin removes it:
+A dynamic plugin's host code returns a plugin object. Inject the `evolve` service and register the provider inside `ctx.effect`, so that stopping the plugin removes it:
 
 ```js
 return {
+  name: 'tournament-select',
+  inject: ['evolve'],
   apply(ctx) {
-    const evolve = ctx.get('evolve')
-    if (evolve === undefined) return
-    ctx.effect(() => evolve.register('select', {
+    ctx.effect(() => ctx.evolve.register('select', {
       name: 'tournament',
       async select(population, evolve) {
         const alive = (await population.rows()).filter(row => row.survival === 'yes')
@@ -108,7 +108,12 @@ return {
 }
 ```
 
-Define it with `cordis_define` and activate it with `cordis_run`. The newest registration for a slot is the active one, and the next `evolve_run` call uses it. `cordis_stop` removes it, and the provider that was active before comes back.
+1. `evolve_define` with this code as `host_code` returns `{ plugin_id, package_id, warnings }`. Warnings flag code that cannot register a provider as expected; fix them before activating.
+2. `evolve_activate` with the `plugin_id` starts it. Its result lists the slots whose provider stack `changed`; an activation that changed nothing comes back with a warning, and a failure comes back with its message and stack.
+3. To change it, call `evolve_define` again with the same `plugin_id` and the new code, then `evolve_activate`: the running version is switched to the new one.
+4. `evolve_deactivate` stops it, and the provider that was active before comes back; `remove: true` also deletes every version.
+
+The newest registration for a slot is the active one, and the next `evolve_run` call uses it. Both activation and deactivation are refused while `evolve_run` is executing. The plugins belong to this session and disappear when DSH restarts.
 
 ### Rules to preserve when changing providers
 

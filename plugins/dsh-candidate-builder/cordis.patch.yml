@@ -5,9 +5,9 @@
 # belongs in a profile layer and cannot move into an agent preset.
 #
 # The TOOL row is free. Left here it is global, so every preset in the profile
-# can call `candidate-builder`. To give it to one preset only, delete the tool row from
-# this file's effect by copying it into that preset's `agent.cordis.yml`
-# instead; the provider row stays here either way.
+# can call `candidate-builder`. To give it to one preset only, move the tool row
+# into the `plugins` list of that preset's `@deepseek-ai/dsh-agent-preset`
+# declaration instead; the provider row stays here either way.
 - insert:
     - id: subagent-candidate-builder
       name: dsh-candidate-builder

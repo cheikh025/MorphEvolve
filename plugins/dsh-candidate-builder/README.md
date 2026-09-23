@@ -16,10 +16,11 @@ Four layers, strongest first:
    against the root; anything outside is denied. Guards have no allow result, so
    nothing the child registers can overturn a denial.
 3. Shell tools (`pwsh`/`bash`) are removed by default and grantable per call.
-   Delegation tools (`subagent`, `subagent_fork`, `workflow`, `ralph`,
-   `candidate-builder` itself) and the `cordis_*` dynamic-plugin tools are **never**
-   grantable, so a child can neither spawn an unguarded grandchild nor define a
-   plugin that reads the host filesystem. Skills stay available: the catalog is
+   Delegation tools (`subagent`, `subagent_fork`, `spawn_teammate`, `workflow`,
+   `ralph`, `candidate-builder` itself) and the runtime tools (`cordis_inspect_*`,
+   `plugin_manager`, the `evolve_*` tools) are **never** grantable, so a child can
+   neither spawn an unguarded grandchild, install a plugin, nor run or change the
+   search. Skills stay available: the catalog is
    instruction knowledge, not a path grant.
 4. The child's approval policy is pinned to `never`, so escalating to
    `danger-full-access` is impossible.
@@ -52,8 +53,9 @@ where a provider name may be registered only once. It has to stay on the host
 plane — a profile layer — and cannot move into an agent preset.
 
 The **tool** row is free. Left in the profile, `candidate-builder` is a global tool every
-preset can call. To give it to one preset only, copy that row into the preset's
-`agent.cordis.yml` instead:
+preset can call. To give it to one preset only, move that row into the
+`plugins` list of that preset's `@deepseek-ai/dsh-agent-preset` declaration
+instead:
 
 ```yaml
 - id: tool-candidate-builder
@@ -83,7 +85,7 @@ preset can call. To give it to one preset only, copy that row into the preset's
 | `persona` | string | no | persona applied to this child only |
 | `model` | string | no | model id override; the provider is inherited from the parent route |
 | `run_in_background` | boolean | no | return a job id immediately instead of waiting; collect with `job_output`, stop with `job_kill` |
-| `max_depth` | integer | no | delegation depth cap (default 3) |
+| `max_depth` | integer | no | delegation depth cap (default 1) |
 
 Background runs need `@deepseek-ai/dsh-jobs` and `@deepseek-ai/dsh-tool-jobs`
 mounted; without them the tool says so rather than falling back.

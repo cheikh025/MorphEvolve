@@ -61,6 +61,23 @@ export function apply(ctx) {
 
 When the plugin is unloaded or reloaded, Cordis automatically invokes the disposer and restores the previous provider!
 
+### Runtime tools
+
+DSH 0.1.7 ships the dynamic plugin runner (`dynamicCordisRunner`, from `@deepseek-ai/dsh-cordis-host-runner`, mounted by the web profile) for programmatic callers only. This plugin gives the model four tools over it (`src/runtime.js`), scoped to the calling session:
+
+| tool | does |
+| --- | --- |
+| `evolve_define` | records a dynamic plugin (host code only), or a new version of one; returns `{ plugin_id, package_id, warnings }` |
+| `evolve_activate` | starts it, or switches a running plugin to a newer version; returns the slots whose provider stack `changed` |
+| `evolve_deactivate` | stops it (`remove: true` also deletes every version); returns the slots that changed back |
+| `evolve_plugins` | lists this session's plugins, their versions and last failure, and every slot's provider stack |
+
+The checks: activation and deactivation are refused while `evolve_run` is executing; an activation or deactivation that changed no slot comes back with a warning; `evolve_define` warns about code that never registers a provider, registers it outside `ctx.effect`, or uses `node:fs`. The host code returns a plugin object, for example `{ name, inject: ['evolve'], apply(ctx) { ctx.effect(() => ctx.evolve.register('select', provider)) } }`. Plugins disappear when DSH restarts. `tests/runtime.spec.ts` runs these tools against the real 0.1.7 runner.
+
+## The Evolve Mode preset
+
+This bundle also declares the Evolve Mode agent preset: `presets/evolve.patch.yml` inserts one `@deepseek-ai/dsh-agent-preset` row (`id: evolve`), listed in `package.json` under `dsh.bundle.patch`. Its rows follow DSH 0.1.7's creator preset, with the Evolve persona, the skills in `skills/` beside the shipped creator skills, and no `tool-goal`. Installing the plugin installs the preset; there is no preset folder to copy.
+
 ## Tool Interface: `evolve_run`
 
 The `evolve_run` tool takes:

@@ -1,5 +1,6 @@
 ﻿/**
- * The EVOLVE search plugin: provides the `evolve` service and the model-facing `evolve_run` tool.
+ * The EVOLVE search plugin: provides the `evolve` service, the model-facing `evolve_run` and `evolve_status`
+ * tools, and the runtime tools that change the search with dynamic plugins (see ./runtime.js).
  *
  * Exposes swappable service providers on ctx.evolve ('loop' / 'evolve-loop', 'select', 'mutate', 'evaluate', 'survive').
  *
@@ -10,12 +11,13 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import { budgetReport } from './budget.js'
 import { runPaths } from './candidates.js'
 import { Evolve, DEFAULT_MAX_POPULATION, DEFAULT_K } from './evolve.js'
+import { registerRuntimeTools } from './runtime.js'
 
 export const name = 'dsh-evolve-loop'
 export const inject = ['tools', 'subagents']
 
 /**
- * Provide the `evolve` service and register `evolve_run` and `evolve_status`.
+ * Provide the `evolve` service and register `evolve_run`, `evolve_status` and the runtime tools.
  * @param {object} ctx - the plugin context.
  */
 export function apply(ctx) {
@@ -100,4 +102,6 @@ export function apply(ctx) {
       return { task, providers: evolve.providerStacks(), budget }
     },
   }))
+
+  registerRuntimeTools(ctx, evolve)
 }

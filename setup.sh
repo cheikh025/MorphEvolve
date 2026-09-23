@@ -2,8 +2,8 @@
 # Install the Evolve kit into a DeepSeek Harness home, using a DSH source clone:
 #   - checks the prerequisites (node, pnpm, git, python 3.11-3.14, bwrap, docker)
 #   - clones, pins and builds the DSH clone when it is missing or on another version
-#   - installs the dsh-candidate-builder and dsh-evolve-loop plugins, from dist/, into a profile
-#   - installs the Evolve preset, from presets/evolve, into $DSH_HOME/.agent-presets/evolve
+#   - installs the dsh-candidate-builder and dsh-evolve-loop plugins, from dist/, into a profile;
+#     dsh-evolve-loop also declares the Evolve Mode agent preset
 #   - installs what the benchmark evaluators (tasks/*/*/evaluator) need, under $BENCH_HOME:
 #     pinned clones of Frontier-CS and ALE-Bench, a Python environment with the evaluator
 #     packages, the ALE-Bench execution images and the Frontier-CS judge server (Docker)
@@ -22,12 +22,12 @@ PROFILE="${PROFILE:-web}"
 PROFILE_DIR="$DSH_HOME/profiles/$PROFILE"
 PLUGINS=(dsh-candidate-builder dsh-evolve-loop)
 # The harness version the plugins and the preset were built and tested against,
-# and the tag that carries it. dsh-candidate-builder uses the 0.1.5 agent factory
-# (setup(childCtx, child) and parentAgent) and the preset's persona row uses the
-# 0.1.5 prefix/suffix form, so an older clone does not run this kit.
-BUILT_AGAINST="0.1.5-rc.2"
+# and the tag that carries it. The preset is declared through a bundle patch and
+# the runtime tools use the dynamic plugin runner as 0.1.7 ships them, and the
+# plugins' DSH peer ranges (>=0.1.7-rc.1 <0.2.0) make DSH refuse them elsewhere.
+BUILT_AGAINST="0.1.7-rc.1"
 DSH_REMOTE="${DSH_REMOTE:-https://github.com/deepseek-ai/deepseek-harness.git}"
-DSH_REF="${DSH_REF:-dsh-v0.1.5-rc.2}"
+DSH_REF="${DSH_REF:-dsh-v0.1.7-rc.1}"
 # What the benchmark evaluators run against. Frontier-CS is pinned to the commit the
 # task statements were taken from, so its judge holds the matching test data; ALE-Bench
 # is pinned so every machine judges the same way. Both methods under comparison must
@@ -72,7 +72,7 @@ pinned_clone() {
   echo "-- $(basename "$dir") at ${want:0:12}"
 }
 
-echo "== 1/7 checks"
+echo "== 1/6 checks"
 need node "Install Node.js 24 (the harness needs ^22.19.0 or >=24.0.0)."
 need pnpm "Install pnpm 11.7.0, e.g.: npm install -g pnpm@11.7.0"
 need git "Install git, e.g.: sudo apt install git"
@@ -110,7 +110,7 @@ for pkg in "${PLUGINS[@]}"; do
 done
 [ -f "$KIT/PROMPT.md" ] || fail "missing $KIT/PROMPT.md"
 
-echo "== 2/7 DSH clone -> $DSH_REPO (kit targets $BUILT_AGAINST)"
+echo "== 2/6 DSH clone -> $DSH_REPO (kit targets $BUILT_AGAINST)"
 needs_build=0
 if [ ! -f "$DSH_REPO/apps/cli/package.json" ]; then
   if [ -e "$DSH_REPO" ] && [ -n "$(ls -A "$DSH_REPO" 2>/dev/null)" ]; then
@@ -163,7 +163,7 @@ fi
   || fail "the clone did not build: $DSH_REPO/apps/cli/lib/bin.js is missing. In $DSH_REPO, run: pnpm install && pnpm run build"
 echo "-- DSH $version at $DSH_REPO, installed and built"
 
-echo "== 3/7 plugins -> profile '$PROFILE' ($PROFILE_DIR)"
+echo "== 3/6 plugins -> profile '$PROFILE' ($PROFILE_DIR)"
 # Remove the previous package name when upgrading an existing profile.
 if [ -f "$PROFILE_DIR/package.json" ] && node -e '
     const manifest = require(process.argv[1])
@@ -185,20 +185,7 @@ for pkg in "${PLUGINS[@]}"; do
   dsh_clone plugin --profile "$PROFILE" add "$tgz"
 done
 
-echo "== 4/7 preset -> $DSH_HOME/.agent-presets/evolve"
-PRESETS="$DSH_HOME/.agent-presets"
-mkdir -p "$PRESETS"
-if [ -d "$PRESETS/evolve" ]; then
-  # Kept outside .agent-presets: DSH lists every directory there as a preset.
-  backup="$DSH_HOME/.agent-presets-backup/evolve-$(date +%Y%m%d-%H%M%S)"
-  mkdir -p "$(dirname "$backup")"
-  mv "$PRESETS/evolve" "$backup" \
-    || fail "could not move the installed preset to $backup. A running DSH can hold that folder open — stop DSH and run setup.sh again."
-  echo "-- previous preset moved to $backup"
-fi
-cp -R "$KIT/presets/evolve" "$PRESETS/evolve"
-
-echo "== 5/7 benchmark sources and Python environment -> $BENCH_HOME"
+echo "== 4/6 benchmark sources and Python environment -> $BENCH_HOME"
 mkdir -p "$BENCH_HOME"
 pinned_clone "$FRONTIER_CS_DIR" "$FRONTIER_CS_REMOTE" "$FRONTIER_CS_REF"
 pinned_clone "$ALE_BENCH_DIR" "$ALE_BENCH_REMOTE" "$ALE_BENCH_REF"
@@ -222,7 +209,7 @@ mapfile -t frontier_deps <<< "$frontier_deps"
 "$BENCH_PY" -m pip freeze > "$BENCH_HOME/pip-freeze.txt"
 echo "-- evaluator Python: $BENCH_PY ($("$BENCH_PY" --version 2>&1)); package versions in $BENCH_HOME/pip-freeze.txt"
 
-echo "== 6/7 judges (Docker)"
+echo "== 5/6 judges (Docker)"
 echo "-- ALE-Bench execution images (the first build pulls and builds several images)"
 (cd "$ALE_BENCH_DIR" && bash ./scripts/docker_build_all.sh "$(id -u)" "$(id -g)") \
   || fail "building the ALE-Bench images failed; see the docker output above."
@@ -238,7 +225,7 @@ judge_up() {
 for _ in $(seq 1 60); do judge_up && break; sleep 2; done
 judge_up || fail "the Frontier-CS judge is not answering at $FRONTIER_CS_JUDGE/problems. See: cd $FRONTIER_CS_DIR/algorithmic && docker compose logs"
 
-echo "== 7/7 verify"
+echo "== 6/6 verify"
 grep -q "web_search" "$PROFILE_DIR/node_modules/dsh-candidate-builder/lib/index.js" \
   || fail "dsh-candidate-builder is not the kit version (no web restriction found)"
 grep -q "candidate-builder" "$PROFILE_DIR/node_modules/dsh-candidate-builder/lib/index.js" \
@@ -255,8 +242,19 @@ node -e '
     if (!bundles.includes(name)) { console.error(`setup: ${name} is not listed in the profile bundles`); process.exit(1) }
   }
 ' "$PROFILE_DIR/package.json"
-[ -f "$PRESETS/evolve/agent.cordis.yml" ] && [ -f "$PRESETS/evolve/preset.yml" ] \
-  || fail "the Evolve preset was not copied"
+grep -q "evolve_activate" "$PROFILE_DIR/node_modules/dsh-evolve-loop/src/runtime.js" \
+  || fail "dsh-evolve-loop is not the kit version (no runtime tools found)"
+node -e '
+  const patch = require(process.argv[1]).dsh?.bundle?.patch ?? []
+  if (!patch.includes("./presets/evolve.patch.yml")) { console.error("setup: dsh-evolve-loop does not declare the Evolve preset"); process.exit(1) }
+' "$PROFILE_DIR/node_modules/dsh-evolve-loop/package.json"
+grep -q "id: evolve" "$PROFILE_DIR/node_modules/dsh-evolve-loop/presets/evolve.patch.yml" \
+  || fail "the Evolve preset declaration is missing from dsh-evolve-loop"
+[ -f "$PROFILE_DIR/node_modules/dsh-evolve-loop/skills/orchestrating-the-search/SKILL.md" ] \
+  || fail "the Evolve skills are missing from dsh-evolve-loop"
+if [ -d "$DSH_HOME/.agent-presets/evolve" ]; then
+  echo "setup: note: $DSH_HOME/.agent-presets/evolve is left from an older kit. DSH 0.1.7 no longer reads that folder; Evolve Mode now comes from dsh-evolve-loop, so it can be deleted." >&2
+fi
 "$BENCH_PY" -c 'import numpy, scipy, matplotlib, jax, optax' \
   || fail "the math evaluator packages do not import in $BENCH_VENV"
 "$BENCH_PY" -c 'import cairosvg' >/dev/null 2>&1 \
@@ -269,7 +267,7 @@ docker image inspect ale-bench:cpp20-202301 >/dev/null 2>&1 \
   || fail "the ALE-Bench C++20 image (ale-bench:cpp20-202301) is missing"
 
 echo
-echo "Ready. DSH $version at $DSH_REPO, plugins in profile '$PROFILE', preset in $PRESETS/evolve."
+echo "Ready. DSH $version at $DSH_REPO, plugins and the Evolve Mode preset in profile '$PROFILE'."
 echo "Frontier-CS judge at $FRONTIER_CS_JUDGE (Docker restarts it; stop it with: cd $FRONTIER_CS_DIR/algorithmic && docker compose down)."
 echo "The task evaluators run with 'python', so start DSH with the benchmark environment first on PATH:"
 echo "  cd $DSH_REPO && PATH=\"$BENCH_VENV/bin:\$PATH\" DSH_HOME=$DSH_HOME pnpm dsh web"

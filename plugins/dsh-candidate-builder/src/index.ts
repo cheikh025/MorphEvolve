@@ -13,9 +13,9 @@
  *    knowledge, never a path grant). Shell tools (pwsh/bash) are removed by
  *    default (visibility plus name denial) but grantable per child through the
  *    request's `allowedTools`. Delegation tools (subagent/workflow/ralph), the
- *    `candidate-builder` tool itself, and the `cordis_*` dynamic-plugin tools are never
- *    grantable, so the child cannot spawn unguarded grandchildren or define
- *    plugins that read the host filesystem.
+ *    `candidate-builder` tool itself, the runtime tools (Cordis inspection,
+ *    `plugin_manager`, the evolve tools) are never grantable, so the child
+ *    cannot spawn unguarded grandchildren, install plugins, or change the search.
  * 4. The child's approval policy is pinned to `never`, so sandbox escalation
  *    (including `danger-full-access`) is impossible.
  *
@@ -55,7 +55,7 @@ import type {
 } from '@deepseek-ai/dsh-subagent'
 import type { ToolGuard, ToolRestriction } from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-system-prompt'
-import type {} from '@deepseek-ai/dsh-agent-presets'
+import type {} from '@deepseek-ai/dsh-agent-preset-registry'
 import { normalizeAbs, resolveInside } from './path.ts'
 
 export const name = 'subagent-candidate-builder'
@@ -97,17 +97,18 @@ export interface CandidateBuilderStartRequest extends ResolvedSubagentStartReque
 /**
  * Tools that must NEVER run inside a confined child, not even when the
  * delegating agent asks for them: delegation (grandchildren would not inherit
- * the guard), the dynamic plugin tools (a child could define a plugin that
- * reads the host filesystem), and the web tools (a child works only from its
- * directory, not from material found online). Skills are intentionally NOT
- * listed here: they stay available to every child as read-only instruction
+ * the guard), the runtime tools (Cordis inspection, `plugin_manager`, which
+ * changes the whole profile, and the evolve tools, which run or change the
+ * search a child is only one attempt of), and the web tools (a child works only
+ * from its directory, not from material found online). Skills are intentionally
+ * NOT listed here: they stay available to every child as read-only instruction
  * knowledge.
  */
 const DENY_TOOLS = [
   'candidate-builder',
-  'subagent', 'subagent_fork', 'workflow', 'ralph',
-  'cordis_define', 'cordis_run', 'cordis_stop', 'cordis_undefine',
-  'cordis_inspect_list', 'cordis_inspect_query', 'cordis_inspect_self',
+  'subagent', 'subagent_fork', 'spawn_teammate', 'workflow', 'ralph',
+  'cordis_inspect_list', 'cordis_inspect_query', 'plugin_manager',
+  'evolve_run', 'evolve_status', 'evolve_define', 'evolve_activate', 'evolve_deactivate', 'evolve_plugins',
   'web_search', 'web_fetch',
 ] as const
 
@@ -277,7 +278,10 @@ function setupConfinement(
   applyChildComposition(childCtx, parent, { persona: request.persona, toolFilter: request.toolFilter })
   // Fixed policy: writes are contained to the confined cwd, approvals are
   // rejected, and both facts are durable on the child's own log.
+  // `permissionPreset` stays unset: the child never inherits the parent's Auto
+  // or Full access, whatever mode the parent session runs in.
   appendDelegatedPolicyOverrides(child.session, {
+    permissionPreset: undefined,
     sandboxMode: 'workspace-write',
     approvalPolicy: 'never',
   })
@@ -395,7 +399,7 @@ function readResult(
   const own = child.session.snapshotEvents(boundary)
   const lastEnd = foldConsumedWork(own).end
   // The seam's canonical selection rule; a partial answer survives cancel and truncation.
-  const output: ContentBlock[] = finalAssistantOutput(own) ?? []
+  const output: readonly ContentBlock[] = finalAssistantOutput(own) ?? []
   const recorded = toStopReason(lastEnd?.data.reason)
   // Disposal can tear the owner down before the loop records its ordinary
   // `aborted` end, yielding `disposed` instead.

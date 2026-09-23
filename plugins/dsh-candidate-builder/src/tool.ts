@@ -169,7 +169,7 @@ export function apply(ctx: Context, config: Config): void {
       + 'writes are additionally sandbox-contained to it, and escalation to full access is impossible (approval is pinned off in '
       + 'the child). The skill tool is available by default (its instruction catalog lives outside the confined directory; skill '
       + 'content is knowledge, not a path grant). Shell tools (pwsh/bash) are off by default; delegation tools '
-      + '(subagent/workflow/ralph/candidate-builder), the dynamic-plugin tools, and the web tools (web_search/web_fetch) are NEVER grantable. allowed_tools re-enables pwsh/bash '
+      + '(subagent/workflow/ralph/candidate-builder), the runtime tools (Cordis inspection, plugin_manager, the evolve tools), and the web tools (web_search/web_fetch) are NEVER grantable. allowed_tools re-enables pwsh/bash '
       + 'per child (workdir stays confined; arbitrary shell commands can still READ outside paths). The optional persona and '
       + 'model parameters customize the child per call: persona shadows the default persona, model overrides the model id while '
       + 'the provider is inherited from the parent route. The call runs in the foreground by default: it waits for the child to '
@@ -213,7 +213,7 @@ export function apply(ctx: Context, config: Config): void {
       },
       max_depth: {
         type: 'integer',
-        description: 'Optional absolute cap on the child delegation depth (default 3).',
+        description: 'Optional absolute cap on the child delegation depth (default 1).',
       },
     },
     output: {
@@ -256,7 +256,7 @@ export function apply(ctx: Context, config: Config): void {
         throw new Error(`the fs backend returned no host path for: ${directory}`)
       }
 
-      const maxDepth = typeof maxDepthArg === 'number' ? maxDepthArg : 3
+      const maxDepth = typeof maxDepthArg === 'number' ? maxDepthArg : 1
       const allowShell = allowShellArg === true
       const allowedTools = Array.isArray(allowedToolsArg)
         ? [...new Set(allowedToolsArg.filter((tool): tool is string => typeof tool === 'string'))]
