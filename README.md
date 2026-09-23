@@ -1,11 +1,13 @@
 # Evolve kit
 
-Everything needed to run EVOLVE on a new machine with the DeepSeek Harness (DSH): the two plugins, the Evolve preset, and the tasks. Written for Linux, with DSH run from a source clone — including a Docker container reached over SSH.
+Everything needed to run EVOLVE on a new machine with the DeepSeek Harness (DSH): the two plugins, the Evolve preset, and the benchmark tasks with their evaluators. Written for Linux, with DSH run from a source clone — including a Docker container reached over SSH.
 
 ```text
 evolve-kit/
-├── setup.sh                 installs DSH, the plugins and the preset (one command)
+├── setup.sh                 installs DSH, the plugins, the preset and the benchmark evaluators (one command)
 ├── PROMPT.md                the prompt to give an Evolve Mode session
+├── final_eval.py            final score of a finished ALE-Bench run (private evaluation)
+├── private_eval.py          the ALE-Bench private evaluation that final_eval.py runs
 ├── dist/                    prebuilt plugin tarballs — setup.sh installs these
 │   ├── dsh-dirspawn-0.1.0.tgz
 │   └── dsh-evolve-loop-0.1.0.tgz
@@ -13,7 +15,11 @@ evolve-kit/
 │   ├── dsh-dirspawn/        directory-confined workers (web tools blocked for workers)
 │   └── dsh-evolve-loop/     the evolve service, evolve_run and evolve_status
 ├── presets/evolve/          the "Evolve Mode" preset: composition, persona, skills
-└── tasks/                   ahc001, ahc002, ahc004, ahc005, ahc006, ahc009, ahc010
+└── tasks/
+    ├── ale_bench/           10 ALE-Bench problems (ahc008, ahc011, ...)
+    ├── frontier_cs/         172 Frontier-CS problems (0, 1, 10, ...)
+    ├── math/                8 math problems (circle_packing, heilbronn_triangle, ...)
+    └── evaluator_sources.json   where each evaluator was taken from
 ```
 
 ## Requirements
@@ -24,7 +30,8 @@ evolve-kit/
 | pnpm | 11.7.0 | `pnpm -v` |
 | git | any | `git --version` |
 | DeepSeek Harness | a source clone pinned to **0.1.5-rc.2** (tag `dsh-v0.1.5-rc.2`). `setup.sh` clones and builds it when `$DSH_REPO` is missing, so you do not have to — never install `@deepseek-ai/dsh` from npm instead | `node -p "require('$DSH_REPO/apps/cli/package.json').version"` |
-| Python | 3, reachable as `python` (tested with 3.13) | `python --version` |
+| Python | 3.11 to 3.14, reachable as `python` (tested with 3.13), with `venv` | `python --version` |
+| Docker | Engine 24+ with the Compose plugin, usable by your user; the ALE-Bench and Frontier-CS judges run in Docker | `docker version` and `docker compose version` |
 | bubblewrap | any; DSH's sandbox on Linux uses `bwrap`, then a Landlock launcher | `bwrap --version` |
 
 **Do not also install `@deepseek-ai/dsh` globally with npm.** A second, older `dsh` on your PATH starts instead of your clone, shows fewer models, and can fail its API requests.
@@ -53,10 +60,16 @@ Debian/Ubuntu example (Node 24 already installed):
 
 ```bash
 npm install -g pnpm@11.7.0
-sudo apt install python-is-python3 bubblewrap
+sudo apt install python-is-python3 python3-venv bubblewrap libcairo2-dev libffi-dev
 ```
 
-`python-is-python3` matters: the evaluator and the workers run `python`, not `python3`.
+`python-is-python3` matters: the evaluator and the workers run `python`, not `python3`. The cairo libraries are needed by ALE-Bench.
+
+Install Docker Engine 24+ with the Compose plugin (see https://docs.docker.com/engine/install/), then let your user run it and log in again:
+
+```bash
+sudo usermod -aG docker $USER
+```
 
 ### Step 3. Check that the sandbox works
 
@@ -82,6 +95,8 @@ bash "$KIT/setup.sh"
 
 That one command does the rest: it checks the requirements, clones and builds DSH 0.1.5-rc.2 at `$DSH_REPO` (or uses the clone already there), installs both plugins and the Evolve preset into `$DSH_HOME`, and verifies the result. It is safe to run again.
 
+It also installs what the task evaluators need, under `$DSH_HOME/benchmarks`: pinned clones of Frontier-CS and ALE-Bench, a Python environment with the evaluator packages (`$DSH_HOME/benchmarks/venv`), the ALE-Bench Docker images, and the Frontier-CS judge, which it starts at `http://localhost:8081`. The first run takes a while.
+
 If you already have a DSH clone, point `DSH_REPO` at it first. If it is not on 0.1.5-rc.2, commit or stash your work in it so setup can switch it.
 
 ### Step 6. Copy the tasks where runs can write
@@ -93,10 +108,14 @@ mkdir -p "$TASKS"
 cp -R "$KIT"/tasks/* "$TASKS"/
 ```
 
+Each task is a folder such as `$TASKS/math/circle_packing`, `$TASKS/ale_bench/ahc008` or `$TASKS/frontier_cs/0`, with the problem in `statement.md`, the starting program (`solution.py` or `solution.cpp`), the evaluator in `evaluator/`, and its settings in `task.json`.
+
 ### Step 7. Start DSH and open it
 
+The task evaluators run with `python`, so start DSH with the benchmark environment first on your PATH:
+
 ```bash
-cd "$DSH_REPO" && pnpm dsh web --no-open
+cd "$DSH_REPO" && PATH="$DSH_HOME/benchmarks/venv/bin:$PATH" pnpm dsh web --no-open
 ```
 
 DSH serves its page at `http://127.0.0.1:3080` inside the container, and over SSH it only prints the address. Forward that port from your own computer, then open `http://127.0.0.1:3080` there:
@@ -115,7 +134,7 @@ In the DSH page, for each run:
 
 1. Start a new session.
 2. Select the **Evolve Mode** preset.
-3. Set the working directory to a task folder, for example `$TASKS/ahc002`.
+3. Set the working directory to a task folder, for example `$TASKS/math/circle_packing`.
 4. Choose the model **DeepSeek Flash 4.1**.
 5. Set reasoning to **max**.
 6. Give it **full access**.
@@ -125,7 +144,17 @@ In the DSH page, for each run:
 Improve the solution for the task in this folder by orchestrating and improving the search process. Fitness is the mean score over seeds 0 to 49, and the total budget is 100 candidates. Run evolve_run in small chunks rather than using the full budget at once. Between chunks, analyze the results and determine which part or mechanism of the search is limiting progress, stalling, underperforming, or could be made more effective. Update and improve that specific search mechanism, then run another small chunk and repeat this process. Make improvements whenever the search stalls or when the run data suggests that some part of the search machinery could be better. Do not focus on directly solving the task yourself; your role is to orchestrate, diagnose, and improve the search machinery so that the search can discover better solutions. Do not use the web, do not search for existing solutions, and do not give any subagent the option to use the web or search externally for solutions.
 ```
 
-### Step 9. (optional) Check the install
+### Step 9. (ALE-Bench tasks only) Get the final score
+
+For ALE-Bench tasks, the score during the search is on the public test cases. When the run is finished, score its best candidate on the hidden test cases:
+
+```bash
+"$DSH_HOME/benchmarks/venv/bin/python" "$KIT/final_eval.py" "$TASKS/ale_bench/ahc008"
+```
+
+It prints the result and saves it to `run/final.txt` in the task folder. For the other tasks, the fitness recorded during the run is the final score.
+
+### Step 10. (optional) Check the install
 
 Run these after `setup.sh`. Each should give the expected result.
 
@@ -139,7 +168,11 @@ Run these after `setup.sh`. Each should give the expected result.
 | workers cannot use the web | `grep -c web_search "$DSH_HOME/profiles/web/node_modules/dsh-dirspawn/lib/index.js"` | `1` |
 | status tool installed | `grep -c evolve_status "$DSH_HOME/profiles/web/node_modules/dsh-evolve-loop/src/index.js"` | `2` |
 | preset installed | `ls "$DSH_HOME/.agent-presets/evolve"` | `agent.cordis.yml  preset.yml  skills` |
-| evaluator works | `cd "$TASKS/ahc001" && python -B evaluate.py --candidate . --seed 0` | one JSON line with `"status": "VALID"` (the baseline scored 12461 on the development machine) |
+| evaluator environment | `"$DSH_HOME/benchmarks/venv/bin/python" --version` | Python 3.11 to 3.14 |
+| Frontier-CS judge | `curl -s -o /dev/null -w '%{http_code}
+' http://localhost:8081/problems` | `200` |
+| ALE-Bench image | `docker image inspect ale-bench:cpp20-202301 --format ok` | `ok` |
+| evaluator works | `cd "$TASKS/math/circle_packing" && "$DSH_HOME/benchmarks/venv/bin/python" -B "$DSH_HOME/profiles/web/node_modules/dsh-evolve-loop/src/providers/run_evaluator.py" . solution.py` | one JSON line with `"fitness"` and `"metrics"` |
 | the plugins load in DSH | in an Evolve Mode session, ask it to call `evolve_status` | default providers for loop, select, mutate, evaluate, survive; `budget: null` before the first run |
 | workers run in DSH | in a task folder, ask it to run `evolve_run` with `candidates: 1` | a worker starts, and the new candidate gets a score |
 
@@ -149,6 +182,9 @@ Run these after `setup.sh`. Each should give the expected result.
 - **Fewer models than before, or DeepSeek API requests fail** — an older `dsh` is running instead of your clone. Check `which -a dsh`; remove a global install with `npm uninstall -g @deepseek-ai/dsh`, and start DSH with `pnpm dsh web` from the clone.
 - **`SANDBOX_UNAVAILABLE`** — neither `bwrap` nor the Landlock launcher could start; see Step 3.
 - **`python not found`** — install `python-is-python3`, or put a `python` symlink to `python3` on your PATH.
+- **Every candidate fails to evaluate with an import error** — DSH was started without the benchmark environment on its PATH; start it as in Step 7.
+- **setup.sh cannot reach Docker** — start the Docker daemon and add your user to the `docker` group (Step 2), then log in again.
+- **The Frontier-CS judge does not answer** — see its logs with `cd "$DSH_HOME/benchmarks/Frontier-CS/algorithmic" && docker compose logs`. It runs as a privileged container, which Docker must allow.
 - **The page does not open** — forward port 3080 (Step 7); DSH does not open a browser over SSH.
 - **Evaluation fails at the baseline with a permission error** — the session's sandbox mode is `read-only`; the evaluator needs `workspace-write` to write its temporary files.
 - **Everything disappeared after a container restart** — `DSH_HOME`, the clone, the kit or the tasks were not under a persistent folder.
@@ -162,4 +198,6 @@ cd "$DSH_REPO"
 pnpm dsh plugin --profile web remove dsh-evolve-loop
 pnpm dsh plugin --profile web remove dsh-dirspawn
 rm -rf "$DSH_HOME/.agent-presets/evolve"
+cd "$DSH_HOME/benchmarks/Frontier-CS/algorithmic" && docker compose down
+rm -rf "$DSH_HOME/benchmarks"
 ```
