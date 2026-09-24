@@ -23,7 +23,7 @@ For example, you may change:
 
 * **How the search loop runs:** React to each result when the next choice depends on it, or compare batches before narrowing directions. Maintain separate lineages, expand a search tree , restart from an earlier candidate with lessons retained, shift between exploration and refinement or others, or use another search process.
 * **How candidates are produced:** Refinement, repair, redesign, fresh starts, or crossover between candidates, guided by worker directions, prompts, and evaluation findings.
-* **How candidates are chosen:** Which parents or search lines receive another attempt, using scores, novelty, complementary strengths, or past productivity. Possible mechanisms include tournament selection, weighted sampling, and bandit policies.
+* **How candidates are chosen:** Which parents or search lines receive another attempt, using scores, novelty, complementary strengths, or past productivity. Parents are always chosen by a selection mechanism, never picked by hand. Possible mechanisms include tournament selection, weighted sampling, rank-based selection, novelty- or diversity-aware selection, and bandit policies.
 * **How candidates are managed:** Survival, diversity, archives, niches, islands, migration, restarts, and whether weaker candidates remain available as stepping stones.
 * **Who does the work:** Worker roles, models, tools, permissions, context, and how workers collaborate. You may create tools or skills when they help workers or the orchestrator.
 * **How the search learns:** Which measurements and worker reports it keeps, what lessons it extracts, and how they reach later attempts. Memory may be specific to a candidate or lineage, or shared across the run, through prompts, Markdown notes, reports, or structured records.
@@ -71,7 +71,7 @@ The current service exposes five provider slots, each filled by one active provi
 | --- | --- | --- | --- |
 | `loop` | `evolve-loop` | `run(args, evolve)` | anything; the default returns `{ best_id, best_fitness, remaining }` |
 | `select` | `fitness-proportional` | `select(population, evolve)` | the parent's candidate id |
-| `mutate` | `candidate-builder` | `mutate({ parent }, evolve)` | the new candidate `{ id, dir }` |
+| `mutate` | `candidate-builder` | `mutate({ parent }, evolve)` | the new candidate `{ id, dir }`, after a worker has worked on it |
 | `evaluate` | `python-subprocess` | `evaluate(candidate, evolve)` | the candidate's fitness, a number |
 | `survive` | `top-k` | `survive(population, evolve)` | nothing; it rewrites the survival flags |
 
@@ -82,7 +82,11 @@ Every method receives the service as `evolve`. These operations on it are fixed,
 - `population()` — the run's population file: `rows()`, `append(row)`, `write(rows)`.
 - `files` — a run-scoped file store for search state: `resolve(path)`, `write(path, text)`, `append(path, text)`, `read(path)` (undefined when absent), `list(dir)`, `exists(path)`, `remove(path)`. Paths are relative to the run directory (`run/`) and cannot escape it.
 - `context()` — `{ task, root, k, maxPopulation, candidates, budget: { max, used, remaining } }`.
-- `spawnWorker(dir, prompt, options)` — starts one worker confined to `dir` and waits for it; returns `{ text, stopReason }`. `options` may set `description`, `persona`, `model`, `allowShell`, `allowedTools` and `maxDepth`.
+- `spawnWorker(dir, prompt, options)` — starts one worker confined to `dir` and waits for it; returns `{ text, stopReason }`. `options` may set `label`, `description`, `persona`, `model`, `allowedTools` and `maxDepth`. Workers never get a shell (`bash`/`pwsh`), whatever the options say.
+
+A loop runs the other steps through the service, which calls whichever provider is active in that slot: `evolve.select(population)`, `evolve.mutate({ parent })`, `evolve.evaluate(candidate)` and `evolve.survive(population)`.
+
+**`allocate` and `mutate` are not interchangeable.** `allocate(parentId)` only creates the candidate directory. `mutate({ parent })` creates it and also has a worker work on it: the default mutate calls `allocate(parent)`, then `spawnWorker` with the default prompt, and returns only after that worker has finished, so a loop that calls `mutate` several times runs those workers one after another. A loop that starts its own workers — several at once, or with its own prompts — must create its candidates with `allocate`. Calling `mutate` and then `spawnWorker` on the same candidate runs two workers on it, one after the other, for a single budget unit.
 
 Persist search state (scores, reports, logs, digests) with `evolve.files`, never with `node:fs` or `ctx.fs`. The dynamic sandbox has no `node:fs`, and `ctx.fs` is policy-fenced: a dynamic plugin calls `writeText` without a per-call sandbox policy, so the fence resolves the deployment default policy (`workspace-write`, workspace root `process.cwd()`) and a write under the run directory fails with `FS_SANDBOX_DENIED`. The `evolve.files` handle runs in the plugin's host half, which has no such fence.
 
@@ -128,7 +132,7 @@ The service checks the budget when `allocate` is called, but it does not validat
 
 - **The default loop** evaluates the baseline if needed, then repeats selection, mutation, evaluation, recording, and survival while budget remains and the call's `candidates` limit has not been reached. A replacement loop must manage its own progress and stopping conditions. If it repeats without allocating, the budget does not advance.
 - **The default select, survive, and loop** rank candidates by `merit(fitness)` from `population.js`. Positive fitness ranks by its value, zero ranks last, and negative fitness ranks by `1/|fitness|`.
-- **The default mutate** discards the worker's final reply. If later attempts need worker reports, a replacement mutate can save them with `evolve.files`.
+- **The default mutate** runs one worker per call and waits for it to finish, and it discards the worker's final reply. If later attempts need worker reports, a replacement mutate can save them with `evolve.files`.
 
 ## Learn from the next results
 

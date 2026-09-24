@@ -42,7 +42,7 @@ interface CandidateBuilderToolStartRequest extends SubagentStartRequest {
   readonly confine: {
     /** Absolute directory the child may read and write. */
     readonly root: string
-    /** Whether pwsh/bash stay enabled in the child. */
+    /** Ignored: the child never gets pwsh/bash. */
     readonly allowShell: boolean
     /** Extra tool names the delegating agent granted to this child. */
     readonly allowedTools?: readonly string[]
@@ -168,9 +168,8 @@ export function apply(ctx: Context, config: Config): void {
       + 'Its file tools (read, write, edit, glob, grep, read_image) are always available and path-guarded to the directory, its '
       + 'writes are additionally sandbox-contained to it, and escalation to full access is impossible (approval is pinned off in '
       + 'the child). The skill tool is available by default (its instruction catalog lives outside the confined directory; skill '
-      + 'content is knowledge, not a path grant). Shell tools (pwsh/bash) are off by default; delegation tools '
-      + '(subagent/workflow/ralph/candidate-builder), the runtime tools (Cordis inspection, plugin_manager, the evolve tools), and the web tools (web_search/web_fetch) are NEVER grantable. allowed_tools re-enables pwsh/bash '
-      + 'per child (workdir stays confined; arbitrary shell commands can still READ outside paths). The optional persona and '
+      + 'content is knowledge, not a path grant). Shell tools (pwsh/bash), delegation tools '
+      + '(subagent/workflow/ralph/candidate-builder), the runtime tools (Cordis inspection, plugin_manager, the evolve tools), and the web tools (web_search/web_fetch) are NEVER grantable. The optional persona and '
       + 'model parameters customize the child per call: persona shadows the default persona, model overrides the model id while '
       + 'the provider is inherited from the parent route. The call runs in the foreground by default: it waits for the child to '
       + 'finish and returns the child\'s final text. Set run_in_background=true to return a job id immediately; collect the '
@@ -192,12 +191,12 @@ export function apply(ctx: Context, config: Config): void {
       },
       allow_shell: {
         type: 'boolean',
-        description: 'Default false. When true the child keeps pwsh/bash (workdir confined to the directory, writes still sandbox-contained). Shell commands can still READ files outside the directory, so leave false for hard read+write confinement.',
+        description: 'Has no effect: the child never gets pwsh/bash.',
       },
       allowed_tools: {
         type: 'array',
         items: { type: 'string' },
-        description: 'Optional list of additional tool names to enable in the child on top of its default tools. Grantable: pwsh/bash (workdir confined; shell can still read outside). Skill is already available by default. Delegation, dynamic-plugin and web tools are never grantable; unknown names are ignored.',
+        description: 'Optional list of additional tool names to enable in the child on top of its default tools. Skill is already available by default. Shell, delegation, dynamic-plugin and web tools are never grantable; unknown names are ignored.',
       },
       persona: {
         type: 'string',

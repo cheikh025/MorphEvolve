@@ -79,7 +79,7 @@ When `run/population.jsonl` has no rows, `evolve_run` first creates the baseline
 
 ### Each pass
 
-- **select** : picks a parent from the alive candidates. The default weights them by merit calculated from fitness.
+- **select** : picks a parent from the alive candidates. The default weights them by merit calculated from fitness. You may replace this rule, but parents are always chosen by a selection mechanism, never picked by hand.
 - **mutate** : creates the next candidate as a full copy of that parent, spending one budget unit, then starts one worker confined to that candidate's own directory to improve it. The default worker is told the parent's score and writes one complete solution between the markers. The loop then evaluates that candidate.
 - **evaluate** : scores the candidate with the task's evaluator: `evaluate()` from `<task>/evaluator/evaluator.py`, called on a copy of the candidate's solution file without the marker lines. The evaluator defines what it measures. The runner uses `combined_score` when available, or the mean of numeric metrics otherwise. A call that runs past `timeout` (from `task.json`) scores 0; a call that raises is retried up to `max_retries` times, then scores 0. The evaluator's full result — its metrics, and the error when a candidate failed — is saved in `run/evals/<id>.json`.
 - **record** : appends one row to `run/population.jsonl`: `{"id", "parent", "fitness", "survival": "yes"}`.

@@ -47,7 +47,7 @@ export async function evaluate(candidate, evolve) {
       if (policy !== undefined && policy.mode !== 'danger-full-access') {
         const sandbox = ctx.get('sandbox')
         if (sandbox === undefined) throw new Error(`sandbox mode "${policy.mode}" needs the sandbox service`)
-        argv = sandbox.confine(argv, { ...policy, workspaceRoot: scratch }).argv
+        argv = (await sandbox.confine(argv, { ...policy, workspaceRoot: scratch }, signal)).argv
       }
     }
 

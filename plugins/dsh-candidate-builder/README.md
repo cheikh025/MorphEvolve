@@ -15,19 +15,18 @@ Four layers, strongest first:
    runs. Absolute paths, relative paths and `..` escapes are all resolved
    against the root; anything outside is denied. Guards have no allow result, so
    nothing the child registers can overturn a denial.
-3. Shell tools (`pwsh`/`bash`) are removed by default and grantable per call.
-   Delegation tools (`subagent`, `subagent_fork`, `spawn_teammate`, `workflow`,
-   `ralph`, `candidate-builder` itself) and the runtime tools (`cordis_inspect_*`,
-   `plugin_manager`, the `evolve_*` tools) are **never** grantable, so a child can
-   neither spawn an unguarded grandchild, install a plugin, nor run or change the
-   search. Skills stay available: the catalog is
+3. Shell tools (`pwsh`/`bash`), delegation tools (`subagent`, `subagent_fork`,
+   `spawn_teammate`, `workflow`, `ralph`, `candidate-builder` itself) and the
+   runtime tools (`cordis_inspect_*`, `plugin_manager`, the `evolve_*` tools) are
+   **never** grantable, so a child can neither run code, spawn an unguarded
+   grandchild, install a plugin, nor run or change the search. Skills stay available: the catalog is
    instruction knowledge, not a path grant.
 4. The child's approval policy is pinned to `never`, so escalating to
    `danger-full-access` is impossible.
 
-**What it is not.** This is a fence, not a jail. Grant `allow_shell` and the
-child's shell commands can still *read* arbitrary paths — only their workdir is
-confined. Leave shell off for hard read-and-write confinement.
+**What it is not.** This is a fence, not a jail. The child has no shell, so it
+cannot read outside the directory through shell commands; the gap that remains
+is below.
 
 The path guard is lexical: it does not resolve symlinks, so a symlink planted
 inside the confined directory can be read through. Writes are still caught by
@@ -80,8 +79,8 @@ instead:
 | `directory` | string | yes | the directory the child may read and write; absolute, or relative to the session workspace |
 | `prompt` | string | yes | the complete, self-contained task — the child does not see the parent conversation |
 | `description` | string | no | short label shown in subagent listings |
-| `allow_shell` | boolean | no | re-enable `pwsh`/`bash`; workdir stays confined, reads outside become possible |
-| `allowed_tools` | string[] | no | additional tools to enable; only `pwsh`/`bash` are grantable, unknown names are ignored |
+| `allow_shell` | boolean | no | no effect: the child never gets `pwsh`/`bash` |
+| `allowed_tools` | string[] | no | additional tools to enable; shell, delegation, runtime and web tools are never granted, unknown names are ignored |
 | `persona` | string | no | persona applied to this child only |
 | `model` | string | no | model id override; the provider is inherited from the parent route |
 | `run_in_background` | boolean | no | return a job id immediately instead of waiting; collect with `job_output`, stop with `job_kill` |

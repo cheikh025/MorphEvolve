@@ -9,7 +9,7 @@ export const name = 'candidate-builder'
 
 /** Default worker persona. */
 export function defaultPersona() {
-  return 'You are a solution worker in an evolutionary search. Design and implement one complete candidate in your assigned directory.'
+  return 'You are a solution worker in an evolutionary search. Design and implement one complete candidate in your assigned directory. IMPLEMENT A SINGLE SOLUTION. DO NOT ATTEMPT MULTIPLE SOLUTIONS.'
 }
 
 /**
@@ -30,8 +30,7 @@ export function defaultInstruction(parentFitness) {
     'Understand how the current solution works, consider how it could better satisfy the task, and implement your chosen improvement as one complete candidate.',
     'Edit only the solution code between the #EVOLVE_START and #EVOLVE_END markers; leave all other task files and code unchanged.',
     'This directory is one allocated candidate and one complete solution attempt. You may reason about alternatives, but do not write, run, or compare several complete implementations here. A different complete attempt requires another candidate and uses another budget unit.',
-    'You may compile or run validity checks for this implementation and fix errors they reveal. Do not run the task\'s official evaluator or performance benchmarks; the search loop evaluates your candidate after you finish.',
-    'Leave one complete solution and remove temporary files before finishing.',
+    'Do not run the task\'s official evaluator or performance benchmarks; the search loop evaluates your candidate after you finish.',
   )
 
   return lines.join('\n')
@@ -47,7 +46,7 @@ export function defaultInstruction(parentFitness) {
  * @param {string} [options.description] - existing worker label option, used when name is omitted.
  * @param {string} [options.persona] - persona instructions for the worker subagent.
  * @param {string} [options.model] - model id override for the worker.
- * @param {boolean} [options.allowShell=true] - whether shell tools are available to the worker. On by default for compilation and validity checks.
+ * @param {boolean} [options.allowShell=true] - whether shell tools are available to the worker. On by default.
  * @param {string[]} [options.allowedTools] - additional tool names granted to the worker.
  * @param {number} [options.maxDepth] - max delegation depth.
  * @param {object} evolve - the evolve service.

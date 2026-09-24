@@ -105,15 +105,17 @@ describe('provider swapping', () => {
     expect(req.label).toBe('mutator')
   })
 
-  it('asks for one complete attempt and permits shell checks', async () => {
+  it('asks for a single solution attempt', async () => {
     const inst = defaultInstruction()
+    const pers = defaultPersona()
 
     expect(inst).toContain('one complete solution attempt')
-    expect(inst).toContain('You may compile or run validity checks')
+    expect(inst).not.toContain('validity checks')
     expect(inst).toContain('Understand how the current solution works')
+    expect(pers).toContain('IMPLEMENT A SINGLE SOLUTION. DO NOT ATTEMPT MULTIPLE SOLUTIONS.')
 
     await runTool({ max_budget: 1 })
-    // The default worker can compile or check the one candidate it is writing.
+    // The shell stays available to the default worker.
     expect(capturedStartRequests[0].confine.allowShell).toBe(true)
   })
 

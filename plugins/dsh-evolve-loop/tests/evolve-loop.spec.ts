@@ -113,6 +113,31 @@ describe('dsh-evolve-loop', () => {
     expect(evaluation).toEqual({ fitness: 15, metrics: { combined_score: 15 } })
   })
 
+  it('confines a sandboxed task\'s evaluator through the asynchronous sandbox service', async () => {
+    const confined: { policy: any, signal?: AbortSignal }[] = []
+    await ctx.plugin({
+      name: 'test-sandbox',
+      apply: (scope: Context) => {
+        scope.provide('sandboxPolicy', { resolve: () => ({ mode: 'workspace-write' }) })
+        // As DSH 0.1.7's SandboxProvider: confine resolves to the confined argv.
+        scope.provide('sandbox', {
+          async confine(argv: readonly string[], policy: any, signal?: AbortSignal) {
+            confined.push({ policy, signal })
+            return { argv: [...argv] }
+          },
+        })
+      },
+    })
+
+    // The fixture task has "sandbox": true, so the baseline and c000001 both run confined
+    const result = await runTool({ max_budget: 1 })
+
+    expect(result).toEqual({ best_id: 'c000001', best_fitness: 15, remaining: 0 })
+    expect(confined).toHaveLength(2)
+    expect(confined[0].policy).toMatchObject({ mode: 'workspace-write' })
+    expect(confined[0].signal).toBeInstanceOf(AbortSignal)
+  })
+
   it('ranks a failed evaluation (0) last on a minimize task, whose scores are negative', async () => {
     const scores: Record<string, number> = { c000000: -10, c000001: 0, c000002: -5, c000003: -20 }
     evolve.register('evaluate', { name: 'minimize-scores', async evaluate({ id }: any) { return scores[id] } })
