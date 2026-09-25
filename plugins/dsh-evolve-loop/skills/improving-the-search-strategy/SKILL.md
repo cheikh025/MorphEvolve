@@ -82,7 +82,7 @@ Every method receives the service as `evolve`. These operations on it are fixed,
 - `population()` — the run's population file: `rows()`, `append(row)`, `write(rows)`.
 - `files` — a run-scoped file store for search state: `resolve(path)`, `write(path, text)`, `append(path, text)`, `read(path)` (undefined when absent), `list(dir)`, `exists(path)`, `remove(path)`. Paths are relative to the run directory (`run/`) and cannot escape it.
 - `context()` — `{ task, root, k, maxPopulation, candidates, budget: { max, used, remaining } }`.
-- `spawnWorker(dir, prompt, options)` — starts one worker confined to `dir` and waits for it; returns `{ text, stopReason }`. `options` may set `label`, `description`, `persona`, `model`, `allowedTools` and `maxDepth`. Workers never get a shell (`bash`/`pwsh`), whatever the options say.
+- `spawnWorker(dir, prompt, options)` — starts one worker confined to `dir` and waits for it; returns `{ text, stopReason }`. `options` may set `label`, `description`, `persona`, `model`, `allowedTools` and `maxDepth`. Workers never get a shell (`bash`/`pwsh`), whatever the options say. Leave `maxDepth` unset: a value of 0 stops the worker from starting at all, and the candidate stays an unchanged copy of its parent.
 
 A loop runs the other steps through the service, which calls whichever provider is active in that slot: `evolve.select(population)`, `evolve.mutate({ parent })`, `evolve.evaluate(candidate)` and `evolve.survive(population)`.
 

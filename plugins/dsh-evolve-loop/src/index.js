@@ -16,6 +16,10 @@ import { registerRuntimeTools } from './runtime.js'
 export const name = 'dsh-evolve-loop'
 export const inject = ['tools', 'subagents']
 
+// Appended to every evolve_run result, whichever loop provider produced it.
+const RUN_REMINDER = 'Reminder: before changing the search, load the improving-the-search-strategy skill again; '
+  + 'its content may no longer be in your context.'
+
 /**
  * Provide the `evolve` service and register `evolve_run`, `evolve_status` and the runtime tools.
  * @param {object} ctx - the plugin context.
@@ -56,13 +60,10 @@ export function apply(ctx) {
     output: {
       schema: { type: 'json' },
       render(_args, value) {
-        if (value && typeof value.best_id === 'string' && typeof value.best_fitness === 'number') {
-          return [{
-            type: 'text',
-            text: `Best candidate ${value.best_id} (fitness ${value.best_fitness}); ${value.remaining} of budget remaining.`,
-          }]
-        }
-        return [{ type: 'text', text: JSON.stringify(value) }]
+        const summary = value && typeof value.best_id === 'string' && typeof value.best_fitness === 'number'
+          ? `Best candidate ${value.best_id} (fitness ${value.best_fitness}); ${value.remaining} of budget remaining.`
+          : JSON.stringify(value)
+        return [{ type: 'text', text: `${summary}\n\n${RUN_REMINDER}` }]
       },
     },
     async execute(args, exec) {

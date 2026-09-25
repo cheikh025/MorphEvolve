@@ -206,7 +206,9 @@ describe('dsh-evolve-loop', () => {
     })
     expect(rendered).toEqual([{
       type: 'text',
-      text: 'Best candidate c000003 (fitness 45.5); 8 of budget remaining.',
+      text: 'Best candidate c000003 (fitness 45.5); 8 of budget remaining.\n\n'
+        + 'Reminder: before changing the search, load the improving-the-search-strategy skill again; '
+        + 'its content may no longer be in your context.',
     }])
   })
 

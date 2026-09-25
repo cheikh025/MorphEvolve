@@ -121,7 +121,7 @@ A worker has no memory of this conversation. Its candidate directory gives it th
 
 ### Keeping attempts valid
 
-Keep each worker's writable workspace inside its allocated candidate directory. Only the solution region between `#EVOLVE_START` and `#EVOLVE_END` may change; the statement and other copied task files remain fixed. The task evaluator and `task.json` stay outside the candidate directory. Local checks, if you enable them, are development feedback; the loop's evaluator supplies official fitness.
+Keep each worker's writable workspace inside its allocated candidate directory. Only the solution region between `#EVOLVE_START` and `#EVOLVE_END` may change; the statement and other copied task files remain fixed. The task evaluator and `task.json` stay outside the candidate directory.
 
 One allocated candidate is one complete solution attempt. A worker may reason about alternatives, but must not produce or test several complete solutions inside one candidate directory and submit only the best. Trying another complete solution requires another allocated candidate and spends another budget unit. The current budget counter tracks allocated candidate directories, so a custom `mutate` provider must preserve this rule.
 
