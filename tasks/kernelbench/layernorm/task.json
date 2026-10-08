@@ -1,0 +1,15 @@
+{
+  "program": "solution.py",
+  "timeout": 600,
+  "max_retries": 3,
+  "sandbox": false,
+  "env": {
+    "KERNELBENCH_LEVEL": "1",
+    "KERNELBENCH_PROBLEM_ID": "40",
+    "KERNELBENCH_EVAL_MODE": "local",
+    "KERNELBENCH_GPU": "A100",
+    "KERNELBENCH_NUM_CORRECT_TRIALS": "5",
+    "KERNELBENCH_NUM_PERF_TRIALS": "100",
+    "KERNELBENCH_TIMEOUT": "300"
+  }
+}

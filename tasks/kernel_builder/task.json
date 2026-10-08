@@ -1,0 +1,6 @@
+{
+  "program": "kernel_builder.py",
+  "timeout": 150,
+  "max_retries": 0,
+  "sandbox": true
+}

@@ -19,8 +19,18 @@ evolve-kit/
     ├── ale_bench/           10 ALE-Bench problems (ahc008, ahc011, ...)
     ├── frontier_cs/         172 Frontier-CS problems (0, 1, 10, ...)
     ├── math/                8 math problems (circle_packing, heilbronn_triangle, ...)
+    ├── kernel_builder/      CORAL VLIW SIMD tree-traversal optimization (CPU simulator)
     └── evaluator_sources.json   where each evaluator was taken from
 ```
+
+## Kernel Builder task
+
+`tasks/kernel_builder` adapts CORAL's full VLIW SIMD kernel workload. Its evaluator
+needs only Python 3.11+ and uses eight randomized checks per candidate. Fitness is
+`147734 / cycles` for correct kernels and zero for failures. The supplied seed
+measures 11,910 cycles; 147,734 is the historical scalar reference. See
+[tasks/kernel_builder/SOURCE.md](tasks/kernel_builder/SOURCE.md) for the pinned
+source, simulator details, validation commands, and run instructions.
 
 ## Requirements
 
@@ -108,7 +118,7 @@ mkdir -p "$TASKS"
 cp -R "$KIT"/tasks/* "$TASKS"/
 ```
 
-Each task is a folder such as `$TASKS/math/circle_packing`, `$TASKS/ale_bench/ahc008` or `$TASKS/frontier_cs/0`, with the problem in `statement.md`, the starting program (`solution.py` or `solution.cpp`), the evaluator in `evaluator/`, and its settings in `task.json`.
+Each task is a folder such as `$TASKS/math/circle_packing`, `$TASKS/ale_bench/ahc008` or `$TASKS/frontier_cs/0`, with the problem in `statement.md`, the starting program (`solution.py`, `solution.cpp`, or `kernel_builder.py`), the evaluator in `evaluator/`, and its settings in `task.json`.
 
 ### Step 7. Start DSH and open it
 
@@ -141,7 +151,7 @@ In the DSH page, for each run:
 7. Give it the prompt in [`PROMPT.md`](PROMPT.md), which `setup.sh` also prints when it finishes:
 
 ```
-Improve the solution for the task in this folder by orchestrating and improving the search process. Fitness is the mean score over seeds 0 to 49, and the total budget is 100 candidates. Run evolve_run in small chunks rather than using the full budget at once. Between chunks, analyze the results and determine which part or mechanism of the search is limiting progress, stalling, underperforming, or could be made more effective. Update and improve that specific search mechanism, then run another small chunk and repeat this process. Make improvements whenever the search stalls or when the run data suggests that some part of the search strategy could be better. Do not focus on directly solving the task yourself; your role is to orchestrate, diagnose, and improve the search strategy so that the search can discover better solutions. Do not use the web, do not search for existing solutions, and do not give any subagent the option to use the web or search externally for solutions.
+Improve the solution for the task in this folder by orchestrating and improving the search process. Fitness is the score given by the task's evaluator, and the total budget is 100 candidates. Run evolve_run in small chunks rather than using the full budget at once. Between chunks, analyze the results and determine which part or mechanism of the search is limiting progress, stalling, underperforming, or could be made more effective. Update and improve that specific search mechanism, then run another small chunk and repeat this process. Make improvements whenever the search stalls or when the run data suggests that some part of the search strategy could be better. Do not focus on directly solving the task yourself; your role is to orchestrate, diagnose, and improve the search strategy so that the search can discover better solutions. Do not use the web, do not search for existing solutions, and do not give any subagent the option to use the web or search externally for solutions.
 ```
 
 ### Step 9. (ALE-Bench tasks only) Get the final score
