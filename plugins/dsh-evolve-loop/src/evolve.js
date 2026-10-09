@@ -14,8 +14,8 @@ import mutateProvider from './providers/mutate.js'
 import evaluateProvider from './providers/evaluate.js'
 import surviveProvider, { DEFAULT_K } from './providers/survive.js'
 import { budgetStatus, pinBudget, readBudget } from './budget.js'
-import { allocateCandidate, candidatePath, copyTask, isCandidate, runPaths } from './candidates.js'
-import { populationOf } from './population.js'
+import { allocateCandidate, candidatePath, copyTask, isCandidate, retireLeftovers, runPaths } from './candidates.js'
+import { populationOf, readPopulation } from './population.js'
 import { filesOf } from './files.js'
 
 export const PROVIDER_SLOTS = Object.freeze(['loop', 'select', 'mutate', 'evaluate', 'survive'])
@@ -196,6 +196,8 @@ export class Evolve {
 
     try {
       await pinBudget(root, maxBudget)
+      // Candidates a stopped earlier call allocated but never recorded spend no budget.
+      await retireLeftovers(root, (await readPopulation(root)).map(row => row.id))
       const loop = this.getProvider('loop')
       const runFn = loop.run ?? loop['evolve-loop'] ?? loop
       if (typeof runFn !== 'function') throw new Error('active loop provider has no run method')

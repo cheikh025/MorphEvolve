@@ -5,10 +5,11 @@
  * @module dsh-evolve-loop/candidates
  */
 
-import { cp, mkdir, readdir, rm, stat } from 'node:fs/promises'
+import { cp, mkdir, readdir, rename, rm, stat } from 'node:fs/promises'
 import { basename, isAbsolute, join } from 'node:path'
 
 export const CANDIDATES_DIR = 'candidates'
+export const ABANDONED_DIR = 'abandoned'
 export const BASELINE_ID = 'c000000'
 export const RUN_DIR = 'run'
 
@@ -49,12 +50,13 @@ export function candidatePath(runDir, id) {
 /**
  * Enumerate all existing candidate directory ordinal numbers.
  * @param {string} runDir - the run root directory.
+ * @param {string} [dirName=CANDIDATES_DIR] - the folder under runDir to enumerate.
  * @returns {Promise<number[]>}
  */
-export async function candidateOrdinals(runDir) {
+export async function candidateOrdinals(runDir, dirName = CANDIDATES_DIR) {
   let entries
   try {
-    entries = await readdir(join(runDir, CANDIDATES_DIR), { withFileTypes: true })
+    entries = await readdir(join(runDir, dirName), { withFileTypes: true })
   } catch (error) {
     if (error.code === 'ENOENT') return []
     throw error
@@ -62,6 +64,27 @@ export async function candidateOrdinals(runDir) {
   return entries
     .filter(entry => entry.isDirectory() && CANDIDATE_NAME.test(entry.name))
     .map(entry => Number(CANDIDATE_NAME.exec(entry.name)[1]))
+}
+
+/**
+ * Move candidates that were allocated but never recorded (left over by a stopped run call)
+ * from candidates/ to abandoned/, so they spend no budget. Call it only while no worker is
+ * running. Their ids stay taken: allocation numbers past them.
+ * @param {string} runDir - the run root directory.
+ * @param {Iterable<string>} recordedIds - ids recorded in population.jsonl.
+ * @returns {Promise<string[]>} the ids moved.
+ */
+export async function retireLeftovers(runDir, recordedIds) {
+  const recorded = new Set(recordedIds)
+  const leftovers = (await candidateOrdinals(runDir))
+    .filter(ordinal => ordinal >= 1)
+    .map(candidateId)
+    .filter(id => !recorded.has(id))
+  if (leftovers.length > 0) await mkdir(join(runDir, ABANDONED_DIR), { recursive: true })
+  for (const id of leftovers) {
+    await rename(candidatePath(runDir, id), join(runDir, ABANDONED_DIR, id))
+  }
+  return leftovers
 }
 
 /**
@@ -121,7 +144,8 @@ export async function allocateCandidate(runDir, maxBudget, parentId) {
     if (used >= maxBudget) {
       throw new Error(`candidate budget exhausted: ${String(used)} of ${String(maxBudget)} attempts used`)
     }
-    const id = candidateId(Math.max(0, ...taken) + 1)
+    const abandoned = await candidateOrdinals(runDir, ABANDONED_DIR)
+    const id = candidateId(Math.max(0, ...taken, ...abandoned) + 1)
     const destination = candidatePath(runDir, id)
     try {
       // Exclusive mkdir to prevent concurrent race conditions

@@ -264,4 +264,57 @@ describe('dsh-evolve-loop', () => {
     release()
     await expect(first).resolves.toBeDefined()
   })
+
+  it('builds up to 5 candidates at once, scores them one at a time, and spends the budget exactly', async () => {
+    let building = 0
+    let mostBuilding = 0
+    let scoring = 0
+    let mostScoring = 0
+    const pause = () => new Promise(resolve => setTimeout(resolve, 5))
+    const plainWorker = worker
+    worker = async (req) => {
+      building += 1
+      mostBuilding = Math.max(mostBuilding, building)
+      await pause()
+      await plainWorker(req)
+      building -= 1
+    }
+    const evaluateDefault = evolve.getProvider('evaluate')
+    evolve.register('evaluate', {
+      name: 'counting-evaluate',
+      async evaluate(candidate: any, svc: any) {
+        scoring += 1
+        mostScoring = Math.max(mostScoring, scoring)
+        await pause()
+        try {
+          return await evaluateDefault.evaluate(candidate, svc)
+        } finally {
+          scoring -= 1
+        }
+      },
+    })
+
+    const result = await runTool({ max_budget: 12 })
+
+    expect(mostBuilding).toBe(5)
+    expect(mostScoring).toBe(1)
+    expect(result.remaining).toBe(0)
+    const records = await rows()
+    expect(records).toHaveLength(13)
+    expect(new Set(records.map(r => r.id)).size).toBe(13)
+    expect(await readdir(join(task, 'run', 'candidates'))).toHaveLength(13)
+  })
+
+  it('does not count candidates a stopped call left unrecorded, and does not reuse their ids', async () => {
+    await runTool({ max_budget: 4, candidates: 1 })
+    // A stopped call left c000002 allocated but never recorded
+    await cp(join(task, 'run', 'candidates', 'c000001'), join(task, 'run', 'candidates', 'c000002'), { recursive: true })
+
+    const result = await runTool({ max_budget: 4 })
+
+    expect(result.remaining).toBe(0)
+    expect(await readdir(join(task, 'run', 'abandoned'))).toEqual(['c000002'])
+    expect((await rows()).map(r => r.id).sort())
+      .toEqual(['c000000', 'c000001', 'c000003', 'c000004', 'c000005'])
+  })
 })

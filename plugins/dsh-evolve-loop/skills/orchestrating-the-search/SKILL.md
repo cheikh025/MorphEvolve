@@ -85,17 +85,19 @@ When `run/population.jsonl` has no rows, `evolve_run` first creates the baseline
 - **record** : appends one row to `run/population.jsonl`: `{"id", "parent", "fitness", "survival": "yes"}`.
 - **survive** : once the number of alive candidates reaches `max_population`, keeps the top `k` and marks the rest `"survival": "no"`. Culled candidates keep their directories and their rows.
 
+The default loop runs up to 5 workers at once. Each worker slot selects a parent and builds one candidate; as soon as that candidate is recorded, the slot starts the next one. Selection, evaluation, recording and survival run one candidate at a time, so evaluations never overlap. Several slots may select the same parent. Candidates are evaluated and recorded in the order their workers finish, so a higher id can be recorded before a lower one.
+
 A worker error does not refund its allocated candidate and may leave partial edits. If the run continues, the loop evaluates and records whatever files remain. Candidate code may fail to run, time out, or produce invalid output; inspect its saved evaluation metrics for feedback when available. If the evaluator cannot load, the call stops. If evaluation infrastructure fails, investigate that failure before treating the resulting score as evidence about the candidate.
 
 The default steps rank candidates by merit: positive fitness uses its value, negative fitness uses `1/|fitness|`, and zero ranks last as a failed evaluation.
 
 ### Run in chunks
 
-Pass `candidates` to limit each `evolve_run` call to a small number of new candidates. After it returns, read the new rows in `run/population.jsonl` and their `run/evals/<id>.json` results. Compare children with their parents: which lineages improve, which failures recur, and whether the alive population is losing diversity. One weak candidate is not enough to diagnose a search problem.
+Pass `candidates` to limit each `evolve_run` call to a small number of new candidates. A call starts at most `candidates` workers, up to 5 at once, and returns only when every candidate it started has been recorded. With `candidates` below 5, fewer workers run; at the end of every call, slots wait idle while the last workers finish. The first parents of a call are selected before any of that call's results are in. After it returns, read the new rows in `run/population.jsonl` and their `run/evals/<id>.json` results. Compare children with their parents: which lineages improve, which failures recur, and whether the alive population is losing diversity. One weak candidate is not enough to diagnose a search problem.
 
 If the search is producing useful candidates, run another chunk. When the results reveal a recurring weakness or an opportunity to improve the strategy, load `improving-the-search-strategy` to diagnose and choose a change. Use the next chunk to check whether the change helped. Pass the same `max_budget` each time; the run resumes from its recorded population, and a recorded baseline is not reevaluated.
 
-An interrupted call may leave a candidate allocated but not recorded; its budget unit is still spent. Only one `evolve_run` call can execute at a time.
+An interrupted call may leave candidates allocated but not recorded. The next `evolve_run` call moves them to `run/abandoned/`: they spend no budget, and their ids are not reused. Only one `evolve_run` call can execute at a time.
 
 ## Directing workers
 
