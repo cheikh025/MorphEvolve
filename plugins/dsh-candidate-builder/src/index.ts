@@ -10,10 +10,11 @@
  *    argument of `read`/`write`/`edit`/`glob`/`grep`/`read_image` (absolute,
  *    relative, and `..` escapes) before the tool body runs.
  * 3. Skills stay available to every child (the catalog is instruction
- *    knowledge, never a path grant). Shell tools (pwsh/bash), delegation tools
- *    (subagent/workflow/ralph), the `candidate-builder` tool itself, and the
- *    runtime tools (Cordis inspection, `plugin_manager`, the evolve tools) are
- *    never grantable, so the child cannot run code, spawn unguarded
+ *    knowledge, never a path grant). The shell (pwsh/bash) is available unless
+ *    the request sets `allowShell: false`; it runs under the sandbox of layer 1.
+ *    Delegation tools (subagent/workflow/ralph), the `candidate-builder` tool
+ *    itself, and the runtime tools (Cordis inspection, `plugin_manager`, the
+ *    evolve tools) are never grantable, so the child cannot spawn unguarded
  *    grandchildren, install plugins, or change the search.
  * 4. The child's approval policy is pinned to `never`, so sandbox escalation
  *    (including `danger-full-access`) is impossible.
@@ -82,7 +83,7 @@ export const Config: z<Config> = z.object({
 export interface CandidateBuilderConfine {
   /** Absolute directory the child may read and write; everything else is denied. */
   readonly root: string
-  /** Ignored: the shell (pwsh/bash) is never available to a child. */
+  /** Whether the shell (pwsh/bash) is available to the child; only `false` removes it. */
   readonly allowShell: boolean
   /** Extra tool names the delegating agent granted; never-grantable names are ignored. */
   readonly allowedTools?: readonly string[]
@@ -95,9 +96,8 @@ export interface CandidateBuilderStartRequest extends ResolvedSubagentStartReque
 
 /**
  * Tools that must NEVER run inside a confined child, not even when the
- * delegating agent asks for them: the shell (a child writes one solution and
- * never runs code, so it cannot evaluate or compare versions of it),
- * delegation (grandchildren would not inherit the guard), the runtime tools
+ * delegating agent asks for them: delegation (grandchildren would not inherit
+ * the guard), the runtime tools
  * (Cordis inspection, `plugin_manager`, which changes the whole profile, and
  * the evolve tools, which run or change the search a child is only one attempt
  * of), and the web tools (a child works only from its directory, not from
@@ -105,13 +105,24 @@ export interface CandidateBuilderStartRequest extends ResolvedSubagentStartReque
  * available to every child as read-only instruction knowledge.
  */
 const DENY_TOOLS = [
-  'pwsh', 'bash',
   'candidate-builder',
   'subagent', 'subagent_fork', 'spawn_teammate', 'workflow', 'ralph',
   'cordis_inspect_list', 'cordis_inspect_query', 'plugin_manager',
   'evolve_run', 'evolve_status', 'evolve_define', 'evolve_activate', 'evolve_deactivate', 'evolve_plugins',
   'web_search', 'web_fetch',
 ] as const
+
+/** The shell tools, denied only when the request sets `allowShell: false`. */
+const SHELL_TOOLS = ['pwsh', 'bash'] as const
+
+/**
+ * The tool names a child is denied.
+ * @param allowShell - whether the shell stays available (only `false` removes it).
+ * @returns the denied tool names.
+ */
+function deniedTools(allowShell: boolean): string[] {
+  return allowShell === false ? [...DENY_TOOLS, ...SHELL_TOOLS] : [...DENY_TOOLS]
+}
 
 /** Which argument field carries the path, per guarded tool. */
 const PATH_FIELDS: Readonly<Record<string, string>> = {
@@ -181,11 +192,12 @@ function safeRestrict(tools: ToolsLike, filter: ToolRestriction): void {
  * Guards have no allow result, so nothing the child registers can overturn a
  * denial.
  * @param root - the absolute confined directory.
+ * @param allowShell - whether the shell stays available (default true; only `false` removes it).
  * @returns the guard for `ctx.tools.guard`.
  */
-export function makeGuard(root: string): ToolGuard {
+export function makeGuard(root: string, allowShell = true): ToolGuard {
   const rootKey = normalizeAbs(root)
-  const denied = new Set<string>(DENY_TOOLS)
+  const denied = new Set<string>(deniedTools(allowShell))
   return (execution) => {
     const toolName = execution.name
     if (denied.has(toolName)) {
@@ -205,7 +217,7 @@ export function makeGuard(root: string): ToolGuard {
 }
 
 /** Model-facing confinement statement for one child. */
-function confinementStatement(root: string): string {
+function confinementStatement(root: string, allowShell: boolean): string {
   const lines = [
     'You are a delegated subagent CONFINED to one directory.',
     `Confined directory (the only path you may read or write): ${root}`,
@@ -213,7 +225,9 @@ function confinementStatement(root: string): string {
     '- Your writes are additionally sandbox-contained to the confined directory; approval is disabled in this session, so escalation beyond it is impossible.',
     '- The skill tool is available to you. Skill instructions come from outside the confined directory; use them as knowledge only, never as a reason to access paths outside it.',
   ]
-  lines.push('- Shell commands (pwsh/bash), dynamic-plugin tools, and delegation tools (subagent/workflow/ralph) are unavailable to you.')
+  lines.push(allowShell === false
+    ? '- Shell commands (pwsh/bash), dynamic-plugin tools, and delegation tools (subagent/workflow/ralph) are unavailable to you.'
+    : '- Dynamic-plugin tools and delegation tools (subagent/workflow/ralph) are unavailable to you.')
   lines.push('When the task needs access beyond the confined directory, do not retry the denied operation; state the limitation in your reply so the delegating agent can handle it.')
   return lines.join('\n')
 }
@@ -264,10 +278,10 @@ function setupConfinement(
   childCtx.systemPrompt.context({
     name: 'candidate-builder:confinement',
     order: childCtx.systemPrompt.getContextOrder('SUBAGENT_DELEGATION'),
-    text: confinementStatement(confine.root),
+    text: confinementStatement(confine.root, confine.allowShell),
   })
-  safeRestrict(childCtx.tools, { deny: [...DENY_TOOLS] })
-  childCtx.tools.guard(makeGuard(confine.root))
+  safeRestrict(childCtx.tools, { deny: deniedTools(confine.allowShell) })
+  childCtx.tools.guard(makeGuard(confine.root, confine.allowShell))
   attachDescriptorAppend(childCtx, request.descriptor)
 }
 

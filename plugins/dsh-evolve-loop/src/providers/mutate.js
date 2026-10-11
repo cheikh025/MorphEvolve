@@ -9,7 +9,7 @@ export const name = 'candidate-builder'
 
 /** Default worker persona. */
 export function defaultPersona() {
-  return 'You are a solution worker in an evolutionary search. Design and implement one complete candidate in your assigned directory. IMPLEMENT A SINGLE SOLUTION. DO NOT ATTEMPT MULTIPLE SOLUTIONS.'
+  return 'You are a solution worker in an evolutionary search. Design and implement one complete candidate in your assigned directory.'
 }
 
 /**
@@ -29,8 +29,6 @@ export function defaultInstruction(parentFitness) {
   lines.push(
     'Understand how the current solution works, consider how it could better satisfy the task, and implement your chosen improvement as one complete candidate.',
     'Edit only the solution code between the #EVOLVE_START and #EVOLVE_END markers; leave all other task files and code unchanged.',
-    'This directory is one allocated candidate and one complete solution attempt. You may reason about alternatives, but do not write, run, or compare several complete implementations here. A different complete attempt requires another candidate and uses another budget unit.',
-    'Do not run the task\'s official evaluator or performance benchmarks; the search loop evaluates your candidate after you finish.',
   )
 
   return lines.join('\n')
