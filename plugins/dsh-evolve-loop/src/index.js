@@ -56,6 +56,14 @@ export function apply(ctx) {
         type: 'integer',
         description: 'The most new candidates this call may create. Default: until the budget is used.',
       },
+      worker_timeout_seconds: {
+        type: 'integer',
+        description: 'Time limit for each candidate-builder worker, starting at its first model request. Default 600 (10 minutes); 0 disables it. Includes shell commands and waiting; timed-out candidates are still evaluated.',
+      },
+      worker_warning_seconds: {
+        type: 'integer',
+        description: 'Remaining worker seconds at which to queue a finish-writing warning. Default min(120, worker_timeout_seconds); 0 disables it. Must not exceed the worker time limit.',
+      },
     },
     output: {
       schema: { type: 'json' },
@@ -72,6 +80,8 @@ export function apply(ctx) {
         ...(args.max_population === undefined ? {} : { maxPopulation: args.max_population }),
         ...(args.k === undefined ? {} : { k: args.k }),
         ...(args.candidates === undefined ? {} : { candidates: args.candidates }),
+        ...(args.worker_timeout_seconds === undefined ? {} : { workerTimeoutSeconds: args.worker_timeout_seconds }),
+        ...(args.worker_warning_seconds === undefined ? {} : { workerWarningSeconds: args.worker_warning_seconds }),
       }, exec)
       return result ?? null
     },

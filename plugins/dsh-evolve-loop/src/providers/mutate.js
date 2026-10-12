@@ -47,6 +47,8 @@ export function defaultInstruction(parentFitness) {
  * @param {boolean} [options.allowShell=true] - whether shell tools are available to the worker. On by default.
  * @param {string[]} [options.allowedTools] - additional tool names granted to the worker.
  * @param {number} [options.maxDepth] - max delegation depth.
+ * @param {number} [options.timeoutSeconds] - worker deadline; 0 disables, otherwise inherits run settings.
+ * @param {number} [options.warningSeconds] - remaining seconds at which to warn the worker.
  * @param {object} evolve - the evolve service.
  * @returns {Promise<{ id: string, dir: string }>} the allocated candidate.
  */
@@ -80,8 +82,9 @@ export async function mutate(options, evolve) {
   const candidate = await evolve.allocate(parent)
   const workerLabel = workerName ?? description ?? 'mutator'
 
+  let result
   try {
-    await evolve.spawnWorker(candidate.dir, instruction, {
+    result = await evolve.spawnWorker(candidate.dir, instruction, {
       label: workerLabel,
       persona,
       model,
@@ -95,6 +98,10 @@ export async function mutate(options, evolve) {
     const currentRun = evolve.currentRun?.()
     if (currentRun?.signal?.aborted) throw error
     // A failed worker leaves candidate files as is; it will still be evaluated.
+  }
+
+  if (result?.timing !== undefined) {
+    await evolve.files.write(`workers/${candidate.id}.json`, `${JSON.stringify(result, null, 2)}\n`)
   }
 
   return candidate

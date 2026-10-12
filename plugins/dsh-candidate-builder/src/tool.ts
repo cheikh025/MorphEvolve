@@ -19,6 +19,8 @@ import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { settleRun } from '@deepseek-ai/dsh-subagent'
 import type { SubagentResult, SubagentRun, SubagentStartRequest } from '@deepseek-ai/dsh-subagent'
+import { resolveWorkerTimer } from './timer.ts'
+import type { TimedSubagentResult, WorkerTimerOptions, WorkerTiming } from './timer.ts'
 
 export const name = 'tool-candidate-builder'
 
@@ -38,7 +40,7 @@ export const Config: z<Config> = z.object({
 })
 
 /** The confinement payload the companion provider reads from the start request. */
-interface CandidateBuilderToolStartRequest extends SubagentStartRequest {
+interface CandidateBuilderToolStartRequest extends SubagentStartRequest, WorkerTimerOptions {
   readonly confine: {
     /** Absolute directory the child may read and write. */
     readonly root: string
@@ -62,6 +64,7 @@ interface CandidateBuilderResult {
   directory: string
   stopReason: string
   output: JsonValue[]
+  timing?: WorkerTiming
 }
 
 /** Render text blocks from the canonical JSON block array without trusting arbitrary values. */
@@ -121,14 +124,15 @@ async function settleForegroundRun(run: SubagentRun, root: string): Promise<Cand
     throw execution.reason
   }
   if (disposal.status === 'rejected') throw disposal.reason
-  const result = execution.value
+  const result = execution.value as TimedSubagentResult
   const error = stopReasonError(result)
-  if (error !== undefined) throw new Error(withDiagnosticAndPartialText(error, result))
+  if (error !== undefined && !result.timing?.timedOut) throw new Error(withDiagnosticAndPartialText(error, result))
   return {
     runId: run.id,
     directory: root,
     stopReason: result.stopReason,
     output: result.output as unknown as JsonValue[],
+    ...(result.timing === undefined ? {} : { timing: result.timing }),
   }
 }
 
@@ -214,6 +218,14 @@ export function apply(ctx: Context, config: Config): void {
         type: 'integer',
         description: 'Optional absolute cap on the child delegation depth (default 1).',
       },
+      timeout_seconds: {
+        type: 'integer',
+        description: 'Worker time limit in seconds, starting with its first model request. Default 600 (10 minutes); 0 disables it. Includes shell commands and waiting; expiry cancels this worker and preserves its files.',
+      },
+      warning_seconds: {
+        type: 'integer',
+        description: 'Remaining seconds at which to steer the worker to finish writing. Default min(120, timeout_seconds); 0 disables the warning. Must not exceed timeout_seconds. Delivered at the next model step.',
+      },
     },
     output: {
       schema: {
@@ -225,13 +237,29 @@ export function apply(ctx: Context, config: Config): void {
           directory: { type: 'string', required: true },
           stopReason: { type: 'string' },
           output: { type: 'array', items: { type: 'json' } },
+          timing: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              timeoutSeconds: { type: 'number', required: true },
+              warningSeconds: { type: 'number', required: true },
+              startedAt: { type: 'number' },
+              deadline: { type: 'number' },
+              elapsedSeconds: { type: 'number', required: true },
+              warningQueued: { type: 'boolean', required: true },
+              timedOut: { type: 'boolean', required: true },
+            },
+          },
         },
       },
       render: (_args, value) => {
         if (typeof value.jobId === 'string') {
           return [{ type: 'text', text: `Started background candidate-builder run in "${value.directory}" (job id: ${value.jobId}). Collect the result with job_output; stop it with job_kill.` }]
         }
-        return [{ type: 'text', text: outputValueText(value.output ?? []) || `(no text output; stopReason: ${value.stopReason})` }]
+        const timedOut = value.timing?.timedOut
+          ? `Worker time limit exceeded (${value.timing.timeoutSeconds}s). Candidate files were preserved for evaluation.\n`
+          : ''
+        return [{ type: 'text', text: timedOut + (outputValueText(value.output ?? []) || `(no text output; stopReason: ${value.stopReason})`) }]
       },
     },
     // Children never mutate the parent session; each call owns its own child.
@@ -240,6 +268,11 @@ export function apply(ctx: Context, config: Config): void {
       const { directory, prompt, description, allow_shell: allowShellArg, max_depth: maxDepthArg, allowed_tools: allowedToolsArg, persona: personaArg, model: modelArg, run_in_background: runInBackgroundArg } = args
       const parent = exec.agent
       if (parent === undefined) throw new Error('candidate-builder requires a calling agent')
+      // Validate before any filesystem or child work, including background jobs.
+      const timing = resolveWorkerTimer({
+        ...(args.timeout_seconds === undefined ? {} : { timeoutSeconds: args.timeout_seconds }),
+        ...(args.warning_seconds === undefined ? {} : { warningSeconds: args.warning_seconds }),
+      })
       const fs = parent.ctx.get('fs') as FileSystemLike | undefined
       if (fs === undefined) throw new Error('candidate-builder requires the fs service on the parent context')
 
@@ -270,6 +303,8 @@ export function apply(ctx: Context, config: Config): void {
         ...(persona !== undefined ? { persona } : {}),
         ...(model !== undefined ? { agentOptions: { model } } : {}),
         maxDepth,
+        // An explicit 0 must reach the provider, which otherwise applies its default limit.
+        ...(timing ?? { timeoutSeconds: 0 }),
         confine: { root, allowShell, ...(allowedTools.length > 0 ? { allowedTools } : {}) },
       }
 

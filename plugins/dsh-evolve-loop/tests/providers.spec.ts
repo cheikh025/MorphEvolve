@@ -109,10 +109,10 @@ describe('provider swapping', () => {
     const inst = defaultInstruction()
     const pers = defaultPersona()
 
-    expect(inst).toContain('one complete solution attempt')
+    expect(inst).toContain('one complete candidate')
     expect(inst).not.toContain('validity checks')
     expect(inst).toContain('Understand how the current solution works')
-    expect(pers).toContain('IMPLEMENT A SINGLE SOLUTION. DO NOT ATTEMPT MULTIPLE SOLUTIONS.')
+    expect(pers).toContain('Design and implement one complete candidate')
 
     await runTool({ max_budget: 1 })
     // The shell stays available to the default worker.
@@ -152,6 +152,8 @@ describe('provider swapping', () => {
           allowShell: false,
           allowedTools: ['read', 'write'],
           maxDepth: 2,
+          timeoutSeconds: 600,
+          warningSeconds: 60,
         }, evolve)
       },
     })
@@ -165,8 +167,48 @@ describe('provider swapping', () => {
     expect(req.persona).toBe('Optimization specialist')
     expect(req.agentOptions).toEqual({ model: 'deepseek-coder-v2' })
     expect(req.maxDepth).toBe(2)
+    expect(req.timeoutSeconds).toBe(600)
+    expect(req.warningSeconds).toBe(60)
     expect(req.confine.allowShell).toBe(false)
     expect(req.confine.allowedTools).toEqual(['read', 'write'])
+  })
+
+  it('passes per-worker timing from evolve_run to every default worker', async () => {
+    await runTool({ max_budget: 3, worker_timeout_seconds: 600, worker_warning_seconds: 60 })
+    expect(capturedStartRequests).toHaveLength(3)
+    for (const req of capturedStartRequests) {
+      expect(req).toMatchObject({ timeoutSeconds: 600, warningSeconds: 60 })
+    }
+  })
+
+  it('lets an individual worker disable the run timer', async () => {
+    evolve.register('loop', { name: 'timer-override', async run() {
+      const base = await evolve.copyTask()
+      await evolve.mutate({ parent: base.id, timeoutSeconds: 0 })
+    } })
+    await runTool({ max_budget: 1, worker_timeout_seconds: 600, worker_warning_seconds: 60 })
+    expect(capturedStartRequests[0].timeoutSeconds).toBe(0)
+    expect(capturedStartRequests[0].warningSeconds).toBeUndefined()
+  })
+
+  it('rejects bad run timing before creating any worker', async () => {
+    await expect(runTool({ max_budget: 1, worker_timeout_seconds: 20, worker_warning_seconds: 30 })).rejects.toThrow(/must not exceed/)
+    expect(capturedStartRequests).toHaveLength(0)
+  })
+
+  it('records a worker timeout and evaluates its files without aborting the search', async () => {
+    const timing = { timeoutSeconds: 600, warningSeconds: 60, elapsedSeconds: 600, warningQueued: true, timedOut: true }
+    vi.spyOn(ctx.get('subagents') as any, 'start').mockImplementation(async () => ({
+      id: 'timed-worker',
+      result: Promise.resolve({ output: [], stopReason: 'aborted', timing }),
+      dispose: async () => {},
+    }))
+    const result = await runTool({ max_budget: 1, worker_timeout_seconds: 600 })
+    expect(result.remaining).toBe(0)
+    const report = JSON.parse(await readFile(join(task, 'run/workers/c000001.json'), 'utf8'))
+    expect(report).toMatchObject({ stopReason: 'aborted', timing })
+    const rows = (await readFile(join(task, 'run/population.jsonl'), 'utf8')).trim().split('\n').map(line => JSON.parse(line))
+    expect(rows.find(row => row.id === 'c000001').fitness).toBe(10)
   })
 
   it('swaps select provider and restores upon dispose', async () => {

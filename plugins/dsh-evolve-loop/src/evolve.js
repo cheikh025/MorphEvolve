@@ -172,12 +172,15 @@ export class Evolve {
       maxPopulation = DEFAULT_MAX_POPULATION,
       k = DEFAULT_K,
       candidates,
+      workerTimeoutSeconds,
+      workerWarningSeconds,
     } = args ?? {}
 
     requirePositiveInteger('maxBudget', maxBudget)
     requirePositiveInteger('maxPopulation', maxPopulation)
     optionalPositiveInteger('k', k)
     optionalPositiveInteger('candidates', candidates)
+    validateWorkerTiming(workerTimeoutSeconds, workerWarningSeconds)
     if (exec?.agent === undefined) throw new Error('evolve.run needs the calling agent (exec.agent)')
     if (this.ctx.subagents?.getProvider?.(WORKER_PROVIDER) === undefined) {
       throw new Error(`evolve needs the "${WORKER_PROVIDER}" subagent provider, and none is registered`)
@@ -192,6 +195,8 @@ export class Evolve {
       k,
       maxPopulation,
       candidates,
+      workerTimeoutSeconds,
+      workerWarningSeconds,
     })
 
     try {
@@ -320,9 +325,13 @@ export class Evolve {
       maxDepth,
       allowShell = true,
       allowedTools,
+      timeoutSeconds = run.workerTimeoutSeconds,
+      warningSeconds = options?.timeoutSeconds === undefined ? run.workerWarningSeconds : undefined,
       confine = {},
       ...rest
     } = options ?? {}
+
+    validateWorkerTiming(timeoutSeconds, warningSeconds)
 
     const started = await this.ctx.subagents.start(WORKER_PROVIDER, {
       ...rest,
@@ -333,6 +342,8 @@ export class Evolve {
       ...(persona !== undefined ? { persona } : {}),
       ...(agentOptions !== undefined ? { agentOptions } : {}),
       ...(maxDepth !== undefined ? { maxDepth } : {}),
+      ...(timeoutSeconds !== undefined ? { timeoutSeconds } : {}),
+      ...(warningSeconds !== undefined ? { warningSeconds } : {}),
       confine: {
         root: dir,
         allowShell,
@@ -353,6 +364,19 @@ export class Evolve {
     if (disposal.status === 'rejected') throw disposal.reason
 
     run.signal.throwIfAborted()
-    return { text: textOf(execution.value?.output), stopReason: execution.value?.stopReason }
+    return {
+      text: textOf(execution.value?.output),
+      stopReason: execution.value?.stopReason,
+      ...(execution.value?.timing === undefined ? {} : { timing: execution.value.timing }),
+    }
   }
+}
+
+function validateWorkerTiming(timeoutSeconds = 600, warningSeconds = Math.min(120, timeoutSeconds)) {
+  for (const [name, value] of Object.entries({ timeoutSeconds, warningSeconds })) {
+    if (!Number.isSafeInteger(value) || value < 0 || value > 2_147_483) {
+      throw new Error(`${name} must be an integer from 0 to 2147483`)
+    }
+  }
+  if (warningSeconds > timeoutSeconds) throw new Error('warningSeconds must not exceed timeoutSeconds')
 }

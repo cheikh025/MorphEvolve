@@ -85,6 +85,22 @@ The `evolve_run` tool takes:
 - `max_population` (optional): Population capacity before triggering `survive` (default 10).
 - `k` (optional): Survivors to keep during culling (default 5).
 - `candidates` (optional): Max candidates to create in this invocation.
+- `worker_timeout_seconds` (optional): Time limit for each candidate-builder worker; defaults to `600` (10 minutes); `0` disables it.
+- `worker_warning_seconds` (optional): Warn at this many seconds remaining; defaults to `min(120, worker_timeout_seconds)`. Set `0` to disable the warning.
+
+For example, `{"max_budget": 20, "worker_timeout_seconds": 600, "worker_warning_seconds": 60}`
+gives every worker ten minutes with a warning at one minute remaining. The clock
+starts with that worker's first model attempt and includes shell/tool execution
+and waiting. Warnings arrive at the next model step, so a long request or command
+can delay delivery. The deadline cancels only the worker; the search evaluates
+its saved files and continues. Cancellation and cleanup are cooperative.
+
+The default mutate provider saves timed worker reports (including `timing.timedOut`)
+to `run/workers/<candidate-id>.json`. Evaluator timeouts in `task.json` remain separate.
+Custom mutations and `evolve.spawnWorker()` can override the run defaults with
+`timeoutSeconds` and `warningSeconds`; an explicit `timeoutSeconds: 0` disables
+the timer for that worker. Overriding the duration uses the default warning
+threshold unless `warningSeconds` is also supplied.
 
 ### Return Payload
 

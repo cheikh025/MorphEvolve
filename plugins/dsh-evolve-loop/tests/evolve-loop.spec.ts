@@ -272,10 +272,14 @@ describe('dsh-evolve-loop', () => {
     let mostScoring = 0
     const pause = () => new Promise(resolve => setTimeout(resolve, 5))
     const plainWorker = worker
+    const firstBatch = Promise.withResolvers<void>()
     worker = async (req) => {
       building += 1
       mostBuilding = Math.max(mostBuilding, building)
-      await pause()
+      // Wait for all first-batch workers instead of depending on filesystem
+      // speed fitting into a 5 ms sleep (especially on mounted Windows drives).
+      if (building === 5) firstBatch.resolve()
+      await firstBatch.promise
       await plainWorker(req)
       building -= 1
     }

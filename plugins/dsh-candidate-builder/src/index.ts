@@ -57,6 +57,8 @@ import type { ToolGuard, ToolRestriction } from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry'
 import { normalizeAbs, resolveInside } from './path.ts'
+import { installWorkerTimer, resolveWorkerTimer } from './timer.ts'
+import type { TimedSubagentResult, WorkerTimer, WorkerTimerOptions } from './timer.ts'
 
 export const name = 'subagent-candidate-builder'
 
@@ -90,7 +92,7 @@ export interface CandidateBuilderConfine {
 }
 
 /** The start request a candidate-builder child carries. */
-export interface CandidateBuilderStartRequest extends ResolvedSubagentStartRequest {
+export interface CandidateBuilderStartRequest extends ResolvedSubagentStartRequest, WorkerTimerOptions {
   readonly confine?: CandidateBuilderConfine
 }
 
@@ -293,15 +295,17 @@ function setupConfinement(
  * @returns a published holder-owned run.
  */
 async function startCandidateBuilderRun(
-  request: ResolvedSubagentStartRequest,
+  request: CandidateBuilderStartRequest,
   confine: CandidateBuilderConfine,
 ): Promise<SubagentRun> {
   assertSubagentMaxDepth(request.maxDepth)
+  const timing = resolveWorkerTimer(request)
   if (request.signal.aborted) throw prePublicationAbort()
   const parent = request.parent
   const childDepth = resolveChildDepth(parent, request.maxDepth)
   const childId = brandString<SessionId>(randomUUID())
   const activationBoundary = SessionLogOffset(0)
+  let timer: WorkerTimer | undefined
 
   const agentPreset = parent.ctx.get('agentPresets')?.composedPreset(parent.ctx)
   const handle = await parent.ctx.agents.create({
@@ -318,9 +322,23 @@ async function startCandidateBuilderRun(
     },
     agentOptions: resolveChildAgentOptions(parent, request.agentOptions, childDepth),
     signal: request.signal,
-    setup: (childCtx: Context, child: Agent): void => { setupConfinement(childCtx, child, parent, request, confine) },
+    setup: (childCtx: Context, child: Agent): void => {
+      setupConfinement(childCtx, child, parent, request, confine)
+      if (timing !== undefined) {
+        timer = installWorkerTimer(childCtx, child, timing, request.signal)
+        childCtx.systemPrompt.context({
+          name: 'candidate-builder:timer',
+          order: childCtx.systemPrompt.getContextOrder('SUBAGENT_DELEGATION'),
+          text: `This candidate attempt has a ${timing.timeoutSeconds}-second elapsed-time limit, starting with your first model request. `
+            + 'Budget includes reasoning, tool execution, and waiting. Write your solution files before the deadline. '
+            + (timing.warningSeconds > 0
+              ? `A warning will be queued at ${timing.warningSeconds} seconds remaining and delivered at the next model step.`
+              : 'No advance warning is enabled.'),
+        })
+      }
+    },
   })
-  return drivePublishedRun(handle, request, childId, activationBoundary)
+  return drivePublishedRun(handle, request, childId, activationBoundary, timer)
 }
 
 /**
@@ -337,6 +355,7 @@ function drivePublishedRun(
   request: ResolvedSubagentStartRequest,
   childId: SessionId,
   boundary: SessionLogOffsetType,
+  timer?: WorkerTimer,
 ): SubagentRun {
   const child = handle.agent
   const flags = { cancelled: false }
@@ -350,14 +369,23 @@ function drivePublishedRun(
   // published child as a failed start.
   if (request.signal.aborted) onAbort()
 
-  const result: Promise<SubagentResult> = (async () => {
+  const result: Promise<TimedSubagentResult> = (async () => {
     try {
       if (!flags.cancelled) {
         child.followup(createUserMessage({ content: request.prompt, source: { kind: 'user' } }))
         await child.whenIdle()
       }
-      return readResult(child, boundary, flags.cancelled)
+      timer?.stop()
+      const timing = timer?.snapshot()
+      return {
+        ...readResult(child, boundary, flags.cancelled),
+        ...(timing === undefined ? {} : { timing }),
+        ...(timing?.timedOut ? {
+          diagnostic: `candidate-builder time limit exceeded (${timing.timeoutSeconds}s); candidate files were preserved`,
+        } : {}),
+      }
     } finally {
+      timer?.stop()
       request.signal.removeEventListener('abort', onAbort)
     }
   })()
@@ -367,6 +395,7 @@ function drivePublishedRun(
     localAgent: child,
     result,
     async dispose(): Promise<void> {
+      timer?.stop()
       request.signal.removeEventListener('abort', onAbort)
       flags.cancelled = true
       const settlements = await Promise.allSettled([handle.dispose(), result])
