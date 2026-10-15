@@ -47,7 +47,7 @@ MorphEvolve/
 | Frontier-CS | `tasks/frontier_cs` | 172 | SkyDiscover | Docker (Frontier-CS judge, installed by `setup.sh`) |
 | Math | `tasks/math` | 8 | SkyDiscover | Python (installed by `setup.sh`) |
 | ADRS (systems) | `tasks/adrs` | 4 | SkyDiscover | extra Python packages, not installed by `setup.sh`: `torch` (eplb), `pandas`, `networkx` and `skyplane` (cloudcast), `pandas` and `networkx` (llm_sql) |
-| KernelBench | `tasks/kernelbench` | 4 | SkyDiscover | an NVIDIA GPU with CUDA, and `torch`, `pydra`, `modal` and the `kernelbench` package, not installed by `setup.sh` |
+| KernelBench | `tasks/kernelbench` | 4 | SkyDiscover | `torch`, `pydra`, `modal` and the `kernelbench` package, not installed by `setup.sh` |
 | Kernel Builder | `tasks/kernel_builder` | 1 | CORAL | Python 3.11+ only |
 
 Each task is a folder with the problem in `statement.md`, the starting program (`solution.py`, `solution.cpp` or `kernel_builder.py`), the evaluator in `evaluator/`, and its settings in `task.json`. The code a candidate may change lies between the `#EVOLVE_START` and `#EVOLVE_END` markers.
