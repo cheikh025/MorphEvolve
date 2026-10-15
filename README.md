@@ -1,9 +1,23 @@
-# Evolve kit
+# MorphEvolve
 
-Everything needed to run EVOLVE on a new machine with the DeepSeek Harness (DSH) 0.1.7: the two plugins (one of them carries the Evolve Mode preset), and the benchmark tasks with their evaluators. Written for Linux, with DSH run from a source clone — including a Docker container reached over SSH.
+MorphEvolve is a self-improving agent for evolutionary program search. It runs an evolutionary search over candidate programs, analyzes how the search is progressing, and revises the search's own mechanisms (how parents are selected, how variations are produced, how candidates are evaluated and which survive) while the run continues, without losing the population or its history.
+
+MorphEvolve runs on the [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) 0.1.7 as two plugins and an agent preset, **Evolve Mode**. This repository contains the plugins, the preset, a one-command setup, and the benchmark tasks with their evaluators. The instructions below are written for Linux, with DSH run from a source clone, including inside a Docker container reached over SSH.
+
+## How it works
+
+| component | role | where |
+| --- | --- | --- |
+| MorphEvolve agent | A DSH session with the Evolve Mode preset. It runs the search in small chunks with `evolve_run` and, between chunks, diagnoses what limits progress and revises that part of the search. | `plugins/dsh-evolve-loop/presets/`, `plugins/dsh-evolve-loop/skills/` |
+| Search loop | `evolve_run` runs the loop through the `evolve` service, whose five providers (loop, select, mutate, evaluate, survive) can each be replaced. `evolve_status` reports the population and the active providers. | `plugins/dsh-evolve-loop/src/` |
+| Runtime revision | `evolve_define`, `evolve_activate`, `evolve_deactivate` and `evolve_plugins` let MorphEvolve write a new provider and swap it in during a run; the population and history are kept. | `plugins/dsh-evolve-loop/src/runtime.js` |
+| Workers | Each worker improves one candidate inside its own directory. Workers cannot use the web. | `plugins/dsh-candidate-builder/` |
+| Evaluation | Each candidate is scored by its task's evaluator; the score is the candidate's fitness. | `plugins/dsh-evolve-loop/src/providers/run_evaluator.py`, `tasks/*/evaluator/` |
+
+## Repository layout
 
 ```text
-evolve-kit/
+MorphEvolve/
 ├── setup.sh                 installs DSH, the plugins (with the preset) and the benchmark evaluators (one command)
 ├── PROMPT.md                the prompt to give an Evolve Mode session
 ├── final_eval.py            final score of a finished ALE-Bench run (private evaluation)
@@ -19,18 +33,26 @@ evolve-kit/
     ├── ale_bench/           10 ALE-Bench problems (ahc008, ahc011, ...)
     ├── frontier_cs/         172 Frontier-CS problems (0, 1, 10, ...)
     ├── math/                8 math problems (circle_packing, heilbronn_triangle, ...)
-    ├── kernel_builder/      CORAL VLIW SIMD tree-traversal optimization (CPU simulator)
+    ├── adrs/                4 systems problems (cloudcast, eplb, llm_sql, prism)
+    ├── kernelbench/         4 KernelBench GPU kernels (convdiv, convmax, layernorm, vgg16)
+    ├── kernel_builder/      VLIW SIMD tree-traversal kernel optimization (CPU simulator)
     └── evaluator_sources.json   where each evaluator was taken from
 ```
 
-## Kernel Builder task
+## Tasks
 
-`tasks/kernel_builder` adapts CORAL's full VLIW SIMD kernel workload. Its evaluator
-needs only Python 3.11+ and uses eight randomized checks per candidate. Fitness is
-`147734 / cycles` for correct kernels and zero for failures. The supplied seed
-measures 11,910 cycles; 147,734 is the historical scalar reference. See
-[tasks/kernel_builder/SOURCE.md](tasks/kernel_builder/SOURCE.md) for the pinned
-source, simulator details, validation commands, and run instructions.
+| benchmark | folder | tasks | adapted from | evaluator needs |
+| --- | --- | --- | --- | --- |
+| ALE-Bench | `tasks/ale_bench` | 10 | SkyDiscover | Docker (ALE-Bench images, installed by `setup.sh`) |
+| Frontier-CS | `tasks/frontier_cs` | 172 | SkyDiscover | Docker (Frontier-CS judge, installed by `setup.sh`) |
+| Math | `tasks/math` | 8 | SkyDiscover | Python (installed by `setup.sh`) |
+| ADRS (systems) | `tasks/adrs` | 4 | SkyDiscover | extra Python packages, not installed by `setup.sh`: `torch` (eplb), `pandas`, `networkx` and `skyplane` (cloudcast), `pandas` and `networkx` (llm_sql) |
+| KernelBench | `tasks/kernelbench` | 4 | SkyDiscover | an NVIDIA GPU with CUDA, and `torch`, `pydra`, `modal` and the `kernelbench` package, not installed by `setup.sh` |
+| Kernel Builder | `tasks/kernel_builder` | 1 | CORAL | Python 3.11+ only |
+
+Each task is a folder with the problem in `statement.md`, the starting program (`solution.py`, `solution.cpp` or `kernel_builder.py`), the evaluator in `evaluator/`, and its settings in `task.json`. The code a candidate may change lies between the `#EVOLVE_START` and `#EVOLVE_END` markers.
+
+**Kernel Builder.** The program builds the instruction stream for a binary-tree traversal on a simulated VLIW SIMD machine. The evaluator runs eight randomized correctness checks per candidate. Fitness is `147734 / cycles` for correct kernels and zero for failures; 147,734 is the cycle count of the scalar reference, and the supplied starting program takes 11,910 cycles.
 
 ## Requirements
 
@@ -46,7 +68,7 @@ source, simulator details, validation commands, and run instructions.
 
 **Do not also install `@deepseek-ai/dsh` globally with npm.** A second, older `dsh` on your PATH starts instead of your clone, shows fewer models, and can fail its API requests.
 
-## Steps
+## Installation and usage
 
 ### Step 1. Set your paths
 
@@ -56,7 +78,7 @@ Every command below uses these four path variables, all under one base folder yo
 export BASE=/path/you/choose                 # any folder that survives restarts
 export DSH_REPO=$BASE/deepseek-harness       # your DSH clone (the folder with apps/cli/package.json)
 export DSH_HOME=$BASE/.dsh                   # DSH's home: profiles, presets, settings, sessions
-export KIT=$BASE/evolve-kit                  # this kit
+export KIT=$BASE/MorphEvolve                 # this kit
 export TASKS=$BASE/evolve-tasks              # where runs write
 ```
 
@@ -94,7 +116,7 @@ If this fails with a namespace or permission error, DSH falls back to its Landlo
 ### Step 4. Get the kit
 
 ```bash
-git clone https://github.com/cheikh025/evolve-kit.git "$KIT"
+git clone https://github.com/cheikh025/MorphEvolve.git "$KIT"
 ```
 
 ### Step 5. Run the setup
@@ -179,8 +201,7 @@ Run these after `setup.sh`. Each should give the expected result.
 | status tool installed | `grep -c evolve_status "$DSH_HOME/profiles/web/node_modules/dsh-evolve-loop/src/index.js"` | `2` |
 | preset installed | `ls "$DSH_HOME/profiles/web/node_modules/dsh-evolve-loop/presets"` | `evolve.patch.yml` |
 | evaluator environment | `"$DSH_HOME/benchmarks/venv/bin/python" --version` | Python 3.11 to 3.14 |
-| Frontier-CS judge | `curl -s -o /dev/null -w '%{http_code}
-' http://localhost:8081/problems` | `200` |
+| Frontier-CS judge | `curl -s -o /dev/null -w '%{http_code}' http://localhost:8081/problems` | `200` |
 | ALE-Bench image | `docker image inspect ale-bench:cpp20-202301 --format ok` | `ok` |
 | evaluator works | `cd "$TASKS/math/circle_packing" && "$DSH_HOME/benchmarks/venv/bin/python" -B "$DSH_HOME/profiles/web/node_modules/dsh-evolve-loop/src/providers/run_evaluator.py" . solution.py` | one JSON line with `"fitness"` and `"metrics"` |
 | the plugins load in DSH | in an Evolve Mode session, ask it to call `evolve_status` | default providers for loop, select, mutate, evaluate, survive; `budget: null` before the first run |
@@ -212,3 +233,7 @@ pnpm dsh plugin --profile web remove dsh-candidate-builder
 cd "$DSH_HOME/benchmarks/Frontier-CS/algorithmic" && docker compose down
 rm -rf "$DSH_HOME/benchmarks"
 ```
+
+## Acknowledgments
+
+The benchmark tasks are adapted from [SkyDiscover](https://github.com/skydiscover-ai/skydiscover) and [CORAL](https://github.com/Human-Agent-Society/CORAL). We thank their authors.

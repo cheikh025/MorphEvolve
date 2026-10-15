@@ -1,4 +1,4 @@
-"""KernelBench evaluator for the Evolve kit.
+"""KernelBench evaluator for MorphEvolve.
 
 Scores with SkyDiscover's KernelBench evaluator (kernelbench_evaluator.py, unchanged)
 and changes only how a failure is reported. That evaluator returns the speedup over
