@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { normalizeAbs, resolveInside } from '../src/path.ts'
 
-const ROOT = String.raw`C:\Users\cheikh\Desktop\dshexp\tasks\ahc001`
+const ROOT = String.raw`C:\Users\user\Desktop\dshexp\tasks\ahc001`
 
 describe('normalizeAbs', () => {
   it('lowercases the full Windows key, not just the drive', () => {
-    expect(normalizeAbs(ROOT)).toBe('c:/users/cheikh/desktop/dshexp/tasks/ahc001')
+    expect(normalizeAbs(ROOT)).toBe('c:/users/user/desktop/dshexp/tasks/ahc001')
   })
 
   it('collapses dot segments and separators', () => {
@@ -28,23 +28,23 @@ describe('resolveInside', () => {
   const rootKey = normalizeAbs(ROOT)!
 
   it('admits absolute paths inside the root', () => {
-    expect(resolveInside(rootKey, String.raw`C:\Users\cheikh\Desktop\dshexp\tasks\ahc001\a.txt`))
-      .toBe('c:/users/cheikh/desktop/dshexp/tasks/ahc001/a.txt')
-    expect(resolveInside(rootKey, String.raw`C:\Users\cheikh\Desktop\dshexp\tasks\ahc001`))
-      .toBe('c:/users/cheikh/desktop/dshexp/tasks/ahc001')
+    expect(resolveInside(rootKey, String.raw`C:\Users\user\Desktop\dshexp\tasks\ahc001\a.txt`))
+      .toBe('c:/users/user/desktop/dshexp/tasks/ahc001/a.txt')
+    expect(resolveInside(rootKey, String.raw`C:\Users\user\Desktop\dshexp\tasks\ahc001`))
+      .toBe('c:/users/user/desktop/dshexp/tasks/ahc001')
   })
 
   it('admits relative paths inside the root', () => {
-    expect(resolveInside(rootKey, 'a.txt')).toBe('c:/users/cheikh/desktop/dshexp/tasks/ahc001/a.txt')
-    expect(resolveInside(rootKey, './sub/../ok.txt')).toBe('c:/users/cheikh/desktop/dshexp/tasks/ahc001/ok.txt')
-    expect(resolveInside(rootKey, 'sub/ok.txt')).toBe('c:/users/cheikh/desktop/dshexp/tasks/ahc001/sub/ok.txt')
+    expect(resolveInside(rootKey, 'a.txt')).toBe('c:/users/user/desktop/dshexp/tasks/ahc001/a.txt')
+    expect(resolveInside(rootKey, './sub/../ok.txt')).toBe('c:/users/user/desktop/dshexp/tasks/ahc001/ok.txt')
+    expect(resolveInside(rootKey, 'sub/ok.txt')).toBe('c:/users/user/desktop/dshexp/tasks/ahc001/sub/ok.txt')
   })
 
   it('rejects absolute paths outside the root', () => {
-    expect(resolveInside(rootKey, String.raw`C:\Users\cheikh\Desktop\deepseek-harness\package.json`)).toBeNull()
+    expect(resolveInside(rootKey, String.raw`C:\Users\user\Desktop\deepseek-harness\package.json`)).toBeNull()
     expect(resolveInside(rootKey, String.raw`C:\Windows\win.ini`)).toBeNull()
     expect(resolveInside(rootKey, String.raw`D:\other\file.txt`)).toBeNull()
-    expect(resolveInside(rootKey, String.raw`C:\Users\cheikh\Desktop\dshexp\tasks\ahc001-evil\x`)).toBeNull()
+    expect(resolveInside(rootKey, String.raw`C:\Users\user\Desktop\dshexp\tasks\ahc001-evil\x`)).toBeNull()
   })
 
   it('rejects relative escapes above the root', () => {
@@ -54,8 +54,8 @@ describe('resolveInside', () => {
   })
 
   it('is case-insensitive on Windows keys', () => {
-    expect(resolveInside(rootKey, String.raw`C:\USERS\CHEIKH\DESKTOP\dshexp\tasks\ahc001\Up.txt`))
-      .toBe('c:/users/cheikh/desktop/dshexp/tasks/ahc001/up.txt')
+    expect(resolveInside(rootKey, String.raw`C:\USERS\USER\DESKTOP\dshexp\tasks\ahc001\Up.txt`))
+      .toBe('c:/users/user/desktop/dshexp/tasks/ahc001/up.txt')
   })
 })
 
