@@ -41,8 +41,8 @@ def evaluate(program_path):
         code = (
             Path(program_path)
             .read_text()
-            .replace("# EVOLVE-BLOCK-START", "")
-            .replace("# EVOLVE-BLOCK-END", "")
+            .replace("#EVOLVE_START", "")
+            .replace("#EVOLVE_END", "")
             .strip()
         )
         logger.info("Code extracted")
