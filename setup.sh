@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install MorphEvolve into a DeepSeek Harness home, using a DSH source clone:
+# Install Organon into a DeepSeek Harness home, using a DSH source clone:
 #   - checks the prerequisites (node, pnpm, git, python 3.11-3.14, bwrap, docker)
 #   - clones, pins and builds the DSH clone when it is missing or on another version
 #   - installs the dsh-candidate-builder and dsh-evolve-loop plugins, from dist/, into a profile;

@@ -1,23 +1,23 @@
-# MorphEvolve
+# Organon
 
-MorphEvolve is a self-improving agent for evolutionary program search. It runs an evolutionary search over candidate programs, analyzes how the search is progressing, and revises the search's own mechanisms (how parents are selected, how variations are produced, how candidates are evaluated and which survive) while the run continues, without losing the population or its history.
+Organon is a self-improving agent for evolutionary program search. It runs an evolutionary search over candidate programs, analyzes how the search is progressing, and revises the search's own mechanisms (how parents are selected, how variations are produced, how candidates are evaluated and which survive) while the run continues, without losing the population or its history.
 
-MorphEvolve runs on the [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) 0.1.7 as two plugins and an agent preset, **Evolve Mode**. This repository contains the plugins, the preset, a one-command setup, and the benchmark tasks with their evaluators. The instructions below are written for Linux, with DSH run from a source clone, including inside a Docker container reached over SSH.
+Organon runs on the [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) 0.1.7 as two plugins and an agent preset, **Evolve Mode**. This repository contains the plugins, the preset, a one-command setup, and the benchmark tasks with their evaluators. The instructions below are written for Linux, with DSH run from a source clone, including inside a Docker container reached over SSH.
 
 ## How it works
 
 | component | role | where |
 | --- | --- | --- |
-| MorphEvolve agent | A DSH session with the Evolve Mode preset. It runs the search in small chunks with `evolve_run` and, between chunks, diagnoses what limits progress and revises that part of the search. | `plugins/dsh-evolve-loop/presets/`, `plugins/dsh-evolve-loop/skills/` |
+| Organon agent | A DSH session with the Evolve Mode preset. It runs the search in small chunks with `evolve_run` and, between chunks, diagnoses what limits progress and revises that part of the search. | `plugins/dsh-evolve-loop/presets/`, `plugins/dsh-evolve-loop/skills/` |
 | Search loop | `evolve_run` runs the loop through the `evolve` service, whose five providers (loop, select, mutate, evaluate, survive) can each be replaced. `evolve_status` reports the population and the active providers. | `plugins/dsh-evolve-loop/src/` |
-| Runtime revision | `evolve_define`, `evolve_activate`, `evolve_deactivate` and `evolve_plugins` let MorphEvolve write a new provider and swap it in during a run; the population and history are kept. | `plugins/dsh-evolve-loop/src/runtime.js` |
+| Runtime revision | `evolve_define`, `evolve_activate`, `evolve_deactivate` and `evolve_plugins` let Organon write a new provider and swap it in during a run; the population and history are kept. | `plugins/dsh-evolve-loop/src/runtime.js` |
 | Workers | Each worker improves one candidate inside its own directory. Workers cannot use the web. | `plugins/dsh-candidate-builder/` |
 | Evaluation | Each candidate is scored by its task's evaluator; the score is the candidate's fitness. | `plugins/dsh-evolve-loop/src/providers/run_evaluator.py`, `tasks/*/evaluator/` |
 
 ## Repository layout
 
 ```text
-MorphEvolve/
+Organon/
 ├── setup.sh                 installs DSH, the plugins (with the preset) and the benchmark evaluators (one command)
 ├── PROMPT.md                the prompt to give an Evolve Mode session
 ├── final_eval.py            final score of a finished ALE-Bench run (private evaluation)
@@ -34,7 +34,7 @@ MorphEvolve/
     ├── frontier_cs/         172 Frontier-CS problems (0, 1, 10, ...)
     ├── math/                8 math problems (circle_packing, heilbronn_triangle, ...)
     ├── adrs/                4 systems problems (cloudcast, eplb, llm_sql, prism)
-    ├── kernelbench/         4 KernelBench GPU kernels (convdiv, convmax, layernorm, vgg16)
+    ├── kernelbench/         4 KernelBench kernels (convdiv, convmax, layernorm, vgg16)
     ├── kernel_builder/      VLIW SIMD tree-traversal kernel optimization (CPU simulator)
     └── evaluator_sources.json   where each evaluator was taken from
 ```
@@ -78,7 +78,7 @@ Every command below uses these four path variables, all under one base folder yo
 export BASE=/path/you/choose                 # any folder that survives restarts
 export DSH_REPO=$BASE/deepseek-harness       # your DSH clone (the folder with apps/cli/package.json)
 export DSH_HOME=$BASE/.dsh                   # DSH's home: profiles, presets, settings, sessions
-export KIT=$BASE/MorphEvolve                 # this kit
+export KIT=$BASE/Organon                     # this kit
 export TASKS=$BASE/evolve-tasks              # where runs write
 ```
 
